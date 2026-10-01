@@ -38,7 +38,7 @@ Per-call `token` argument, else the `x-api-key` / `Authorization: Bearer` header
 
 ## Deploy
 
-Push to `main` builds `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` and sets that tag on `base/apps/index4ai-mcp/dev` in `poma-ai/poma-deploy`. That only works once the manifest names this image and runs `/app/index4ai-mcp` (poma-deploy branch `feat/index4ai-mcp-own-image`). Env vars are listed in `README.md`.
+Push to `main` builds `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` and sets that tag on `base/apps/index4ai-mcp/dev` in `poma-ai/poma-deploy`. The manifest must name this image and run `/app/index4ai-mcp`; prod is promoted by hand. Env vars are listed in `README.md`.
 
 ## Domain
 

@@ -2,7 +2,7 @@
 
 A hosted [Model Context Protocol](https://modelcontextprotocol.io) server for the [index4ai](https://index4.ai) context engine. Ingest documents and run semantic search from any MCP client (Claude Code, Claude Desktop, Cursor, or your own agent).
 
-The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). Neither host serves yet: the poma-deploy manifests move to this image on branch `feat/index4ai-mcp-own-image`, and the ArgoCD apps are still commented out. It talks to the index4ai API at `https://api.index4.ai/index4ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
+The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). The hosts serve once the `index4ai-mcp` ArgoCD apps are enabled in poma-deploy (`clusters/gke-poma-nl/argocd/kustomization.yaml`). It talks to the index4ai API at `https://api.index4.ai/index4ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
 
 ## Connect your agent
 
@@ -106,7 +106,7 @@ curl -sS -X POST "https://mcp.index4.ai/ingest-upload?filename=report.pdf" -H "x
 
 ## Deployment
 
-The image is built and pushed to `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` on every push to `main` (`.github/workflows/docker-publish.yml`), which then sets that tag on the `index4ai-mcp` app in `poma-ai/poma-deploy` (dev). The tag update only works once the dev manifest names `ghcr.io/poma-ai/index4ai-mcp` and runs `/app/index4ai-mcp`; until then the deploy step exits non-zero and changes nothing. The container listens on `:8080`: MCP at `/`, health at `GET /health`, protected-resource metadata at `GET /.well-known/oauth-protected-resource`.
+The image is built and pushed to `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` on every push to `main` (`.github/workflows/docker-publish.yml`), which then sets that tag on the `index4ai-mcp` app in `poma-ai/poma-deploy` (dev). The step expects the manifest to name `ghcr.io/poma-ai/index4ai-mcp`; it exits non-zero without writing when it finds no such image, or when the tag is already current. The container listens on `:8080`: MCP at `/`, health at `GET /health`, protected-resource metadata at `GET /.well-known/oauth-protected-resource`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
