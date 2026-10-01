@@ -33,6 +33,10 @@ Auth is OAuth 2.0. On first connect the client gets a `401` with a `WWW-Authenti
 
 To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key" }` (or `"Authorization": "Bearer your-api-key"`). Keys are created in the index4ai console (`console.index4.ai`, dev `console-dev.index4.ai`; the prod console is not live yet).
 
+## Agent plugin
+
+`plugins/index4ai/` packages the MCP declaration with two skills (`index4ai-ingest`, `index4ai-search`). Claude Code: `claude plugin marketplace add poma-ai/index4ai-mcp && claude plugin install index4ai@index4ai`. Other clients: `npx plugins add https://github.com/poma-ai/index4ai-mcp`, or see `plugins/index4ai/MANUAL.md`.
+
 ## Typical workflow
 
 1. `index4ai_ingest_sync` (or `index4ai_ingest`) with `file_base64` for small files or `url` for anything large. Note the returned `job_id`. It is the `doc_id` once done, unless the result carries a `grill` object; then `grill.doc_id` is the document (see [Dedup and re-ingest](#dedup-and-re-ingest)).

@@ -2,7 +2,7 @@
 
 `index4ai-mcp` is a hosted [Model Context Protocol](https://modelcontextprotocol.io) server wrapping the index4ai API (the retrieval product formerly called POMA Grill, now served on its own host and paths). It runs only as a streamable-HTTP server behind the gateway at `mcp.index4.ai` / `mcp-dev.index4.ai`. There is no stdio or local mode. Tools: `index4ai_ingest` (+ `_sync`, `_resume`), `index4ai_search`, `index4ai_jobs_status`, `index4ai_docs_list`, `index4ai_attributes`, `index4ai_projects`, `index4ai_explain`.
 
-Forked from `poma-ai/poma-grill-mcp` (Go variant). Go identifiers still say `Grill` (`GrillError`, `grillClient`, `grill*.go`); user-facing names and messages say index4ai.
+Forked from `poma-ai/poma-grill-mcp` (Go variant). `plugins/index4ai/` is the agent plugin (skills + MCP declaration pointing at `mcp.index4.ai`), listed by `.claude-plugin/marketplace.json`; its skills document the tool surface, so update them when tools change. Go identifiers still say `Grill` (`GrillError`, `grillClient`, `grill*.go`); user-facing names and messages say index4ai.
 
 ## Commands
 

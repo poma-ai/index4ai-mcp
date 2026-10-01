@@ -1,0 +1,40 @@
+{
+  "name": "index4ai",
+  "owner": {
+    "name": "POMA AI",
+    "email": "support@poma-ai.com",
+    "url": "https://poma-ai.com"
+  },
+  "description": "Agent plugins for the index4ai context engine.",
+  "version": "1.0.0",
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "index4ai",
+      "displayName": "index4ai",
+      "source": "./plugins/index4ai",
+      "description": "index4ai — ingest documents into the index4ai context engine and run semantic search over them from any agent.",
+      "version": "0.1.0",
+      "author": {
+        "name": "POMA AI",
+        "email": "support@poma-ai.com",
+        "url": "https://poma-ai.com"
+      },
+      "homepage": "https://index4.ai",
+      "repository": "https://github.com/poma-ai/index4ai-mcp",
+      "license": "MPL-2.0",
+      "category": "knowledge",
+      "keywords": [
+        "index4ai",
+        "poma",
+        "rag",
+        "semantic-search",
+        "document-ingestion",
+        "context-engine",
+        "retrieval"
+      ]
+    }
+  ]
+}
