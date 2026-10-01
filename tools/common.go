@@ -22,14 +22,10 @@ const (
 	defaultStatusPrefix  = "/status/v1"
 )
 
-// apiBaseURLVersionSuffixRE matches a trailing API version path segment: /v then digits
-// (e.g. /index4ai/v1, or the gateway's /v1 rewrite of it).
-var apiBaseURLVersionSuffixRE = regexp.MustCompile(`/v[0-9]+$`)
-
 // apiOrigin is the scheme://host of the index4ai API: POMA_API_BASE_URL with any path
-// dropped, so both "https://api.index4.ai" and "https://api.index4.ai/index4ai/v1" work.
+// dropped, so "https://api.index4.ai" and "https://api.index4.ai/index4ai/v1" both work.
 func apiOrigin() string {
-	v := strings.TrimRight(os.Getenv("POMA_API_BASE_URL"), "/")
+	v := strings.TrimRight(strings.TrimSpace(os.Getenv("POMA_API_BASE_URL")), "/")
 	if v == "" {
 		return defaultAPIBaseURL
 	}
@@ -39,16 +35,12 @@ func apiOrigin() string {
 	return v
 }
 
-// apiBaseURL is the versioned index4ai API root. A POMA_API_BASE_URL that already ends
-// in a version segment is used as-is; a bare origin gets /index4ai/v1.
+// apiBaseURL is the versioned index4ai API root, always <origin>/index4ai/v1. Any path on
+// POMA_API_BASE_URL is replaced rather than kept: a grill-era value such as
+// https://api.poma-ai.com/v3 would otherwise send every call to /v3/ingest, which does
+// not exist (v3 serves /v3/grill/ingest).
 func apiBaseURL() string {
-	if v := strings.TrimRight(os.Getenv("POMA_API_BASE_URL"), "/"); v != "" {
-		if apiBaseURLVersionSuffixRE.MatchString(v) {
-			return v
-		}
-		return v + defaultVersionPrefix
-	}
-	return defaultAPIBaseURL + defaultVersionPrefix
+	return apiOrigin() + defaultVersionPrefix
 }
 
 // consoleURL is the web console that user-facing messages send people to (API keys,
@@ -60,11 +52,14 @@ func consoleURL() string {
 	return defaultConsoleURL
 }
 
+// statusVersionSuffixRE matches a POMA_STATUS_API_BASE_URL that already names a version.
+var statusVersionSuffixRE = regexp.MustCompile(`/v[0-9]+$`)
+
 // statusAPIBaseURL is the job-status SSE service. It is not under /index4ai/v1: the
 // gateway serves it at /status/v1 on the API host, so it hangs off apiOrigin.
 func statusAPIBaseURL() string {
 	if v := strings.TrimRight(os.Getenv("POMA_STATUS_API_BASE_URL"), "/"); v != "" {
-		if apiBaseURLVersionSuffixRE.MatchString(v) {
+		if statusVersionSuffixRE.MatchString(v) {
 			return v
 		}
 		return v + defaultStatusPrefix
@@ -249,7 +244,7 @@ func tokenSource(ctx context.Context, inputToken string) string {
 // interpretAuthError returns a user-friendly error string and a stable error
 // code for 401/402/403 responses. Returns ("", "") if the status code is not an
 // auth/billing error (including capacity/quota 403s, which are handled by
-// interpretTooManyJobs and the batch quota path).
+// interpretTooManyJobs).
 func interpretAuthError(ctx context.Context, inputToken string, statusCode int, body []byte, operation string) (msg, code string) {
 	if statusCode != http.StatusUnauthorized && statusCode != http.StatusPaymentRequired && statusCode != http.StatusForbidden {
 		return "", ""

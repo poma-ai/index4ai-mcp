@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -40,21 +41,30 @@ func publicBaseURL() string {
 	return "http://localhost" + port
 }
 
-// defaultAuthServerURL is where index4ai OAuth tokens are issued. The api serves
-// /.well-known/oauth-authorization-server on api.index4.ai too, but the document it
-// returns names https://api.poma-ai.com as issuer and endpoint host (one issuer per
-// api deployment), so the MCP must advertise that origin: RFC 8414 clients reject
-// metadata whose issuer differs from the URL they fetched it from.
-const defaultAuthServerURL = "https://api.poma-ai.com"
-
-// authServerURL returns the authorization server's base URL: POMA_AUTH_SERVER_URL,
-// else defaultAuthServerURL. Deliberately not derived from POMA_API_BASE_URL, which
-// points at the index4ai API host, not the issuer. Dev sets https://api-dev.poma-ai.com.
+// authServerURL returns the authorization server's base URL (no trailing slash).
+//
+// The api answers OAuth discovery on the index4ai hosts too, but the document names the
+// poma-ai.com host of the same environment as issuer (api.index4.ai -> api.poma-ai.com,
+// api-dev.index4.ai -> api-dev.poma-ai.com), and RFC 8414 clients reject metadata whose
+// issuer differs from the URL they fetched. So the MCP must advertise the poma-ai.com host.
+//
+// Priority: POMA_AUTH_SERVER_URL; else the origin of POMA_API_BASE_URL with a .index4.ai
+// host mapped to the matching .poma-ai.com host; else https://api.poma-ai.com. Deriving
+// from the API host keeps a dev deployment on the dev issuer: a fixed prod default would
+// send dev users to the prod login and mint tokens the dev pod's JWT secret rejects.
 func authServerURL() string {
 	if v := strings.TrimRight(os.Getenv("POMA_AUTH_SERVER_URL"), "/"); v != "" {
 		return v
 	}
-	return defaultAuthServerURL
+	u, err := url.Parse(strings.TrimSpace(os.Getenv("POMA_API_BASE_URL")))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "https://api.poma-ai.com"
+	}
+	host := u.Host
+	if h, ok := strings.CutSuffix(host, ".index4.ai"); ok {
+		host = h + ".poma-ai.com"
+	}
+	return u.Scheme + "://" + host
 }
 
 // handleProtectedResourceMeta serves GET /.well-known/oauth-protected-resource.

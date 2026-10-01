@@ -28,7 +28,7 @@ The contract is `poma-services-go/docs/api/index4ai/v1/openapi.yaml` (generated 
 
 Two footguns:
 - The status SSE stream is not under `/index4ai/v1`. It is `https://api.index4.ai/status/v1/jobs/{job_id}`, derived from the API origin (`statusAPIBaseURL`).
-- OAuth is not on the index4ai host. `api.index4.ai/.well-known/oauth-authorization-server` answers with issuer `https://api.poma-ai.com`, so the protected-resource metadata advertises `POMA_AUTH_SERVER_URL` (default `https://api.poma-ai.com`, dev must set `https://api-dev.poma-ai.com`), never the API host.
+- OAuth is not on the index4ai host. `api(-dev).index4.ai/.well-known/oauth-authorization-server` answers with issuer `https://api(-dev).poma-ai.com`, so the protected-resource metadata advertises that host (`POMA_AUTH_SERVER_URL`, else derived from `POMA_API_BASE_URL` by mapping `.index4.ai` to `.poma-ai.com`), never the API host. A fixed prod default would put dev users on the prod login.
 
 The API still names the job-status dedup object `grill` (`grill.doc_id` etc.), so tool output and descriptions keep that key.
 
@@ -38,7 +38,7 @@ Per-call `token` argument, else the `x-api-key` / `Authorization: Bearer` header
 
 ## Deploy
 
-Push to `main` builds `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` and sets that tag on `base/apps/index4ai-mcp/dev` in `poma-ai/poma-deploy`. Env vars are listed in `README.md`.
+Push to `main` builds `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` and sets that tag on `base/apps/index4ai-mcp/dev` in `poma-ai/poma-deploy`. That only works once the manifest names this image and runs `/app/index4ai-mcp` (poma-deploy branch `feat/index4ai-mcp-own-image`). Env vars are listed in `README.md`.
 
 ## Domain
 

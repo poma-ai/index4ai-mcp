@@ -127,10 +127,8 @@ func runHttpMcpServer(server *mcp.Server) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 
 	// Always register the RFC 9728 protected-resource well-known endpoint.
-	// The authorization server has moved to poma-services-go; the MCP is a thin
+	// The authorization server is the api (poma-services-go); the MCP is a thin
 	// protected resource pointing IDEs at the api to authorize.
-	//
-	// POMA_GRILL_ENABLE_OAUTH is no longer read — it is a no-op if set.
 	oauth.Register(mux, *httpAddr)
 
 	// When POMA_API_JWT_SECRET is set the deployment uses full OAuth JWT verification.

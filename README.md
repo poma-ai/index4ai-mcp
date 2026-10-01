@@ -2,7 +2,7 @@
 
 A hosted [Model Context Protocol](https://modelcontextprotocol.io) server for the [index4ai](https://index4.ai) context engine. Ingest documents and run semantic search from any MCP client (Claude Code, Claude Desktop, Cursor, or your own agent).
 
-The server is deployed at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). It talks to the index4ai API at `https://api.index4.ai/index4ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
+The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). Neither host serves yet: the poma-deploy manifests move to this image on branch `feat/index4ai-mcp-own-image`, and the ArgoCD apps are still commented out. It talks to the index4ai API at `https://api.index4.ai/index4ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
 
 ## Connect your agent
 
@@ -31,7 +31,7 @@ Auth is OAuth 2.0. On first connect the client gets a `401` with a `WWW-Authenti
 }
 ```
 
-To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key" }` (or `"Authorization": "Bearer your-api-key"`). Keys are created at [console.index4.ai](https://console.index4.ai).
+To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key" }` (or `"Authorization": "Bearer your-api-key"`). Keys are created in the index4ai console (`console.index4.ai`, dev `console-dev.index4.ai`; the prod console is not live yet).
 
 ## Typical workflow
 
@@ -106,18 +106,18 @@ curl -sS -X POST "https://mcp.index4.ai/ingest-upload?filename=report.pdf" -H "x
 
 ## Deployment
 
-The image is built and pushed to `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` on every push to `main` (`.github/workflows/docker-publish.yml`), which then sets that tag on the `index4ai-mcp` app in `poma-ai/poma-deploy` (dev). The container listens on `:8080`: MCP at `/`, health at `GET /health`, protected-resource metadata at `GET /.well-known/oauth-protected-resource`.
+The image is built and pushed to `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` on every push to `main` (`.github/workflows/docker-publish.yml`), which then sets that tag on the `index4ai-mcp` app in `poma-ai/poma-deploy` (dev). The tag update only works once the dev manifest names `ghcr.io/poma-ai/index4ai-mcp` and runs `/app/index4ai-mcp`; until then the deploy step exits non-zero and changes nothing. The container listens on `:8080`: MCP at `/`, health at `GET /health`, protected-resource metadata at `GET /.well-known/oauth-protected-resource`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `POMA_API_BASE_URL` | `https://api.index4.ai` | index4ai API host. `/index4ai/v1` is appended unless the value already ends in a version segment. Dev: `https://api-dev.index4.ai`. |
+| `POMA_API_BASE_URL` | `https://api.index4.ai` | index4ai API host. Only the origin is used; calls go to `<origin>/index4ai/v1`. Dev: `https://api-dev.index4.ai`. |
 | `POMA_STATUS_API_BASE_URL` | API host + `/status/v1` | Job-status SSE service. |
-| `POMA_AUTH_SERVER_URL` | `https://api.poma-ai.com` | OAuth authorization server advertised in the protected-resource metadata. Must be the issuer the api reports, which is the poma-ai.com host even on `api.index4.ai`. Dev: `https://api-dev.poma-ai.com`. |
+| `POMA_AUTH_SERVER_URL` | derived | OAuth authorization server advertised in the protected-resource metadata. Must be the issuer the api reports, which is the poma-ai.com host of the same environment even on the index4ai hosts. Unset, it is derived from `POMA_API_BASE_URL` (`api-dev.index4.ai` → `https://api-dev.poma-ai.com`), falling back to `https://api.poma-ai.com`. |
 | `POMA_API_JWT_SECRET` | unset | Enables local verification of OAuth bearer JWTs (HMAC-SHA256, `aud`, `exp`, `typ`). Must match the api. Requires `POMA_MCP_RESOURCE`. |
 | `POMA_MCP_RESOURCE` | unset | The MCP's public URI, checked against the token `aud`. |
 | `POMA_MCP_PUBLIC_URL` | `http://localhost:<port>` | Public base URL used in the metadata and the `WWW-Authenticate` challenge. Required behind the gateway: forwarded headers are not trusted. |
 | `POMA_CONSOLE_URL` | `https://console.index4.ai` | Console linked from error messages. Dev: `https://console-dev.index4.ai`. |
-| `GRILL_INGEST_MAX_BYTES` | 512 MiB | Max ingest payload; `0` = unlimited. |
+| `GRILL_INGEST_MAX_BYTES` | 512 MiB | Max ingest payload; `0` = unlimited. `/ingest-upload` buffers the whole body in memory, so keep this well below the pod memory limit. |
 | `GRILL_MCP_MAX_BODY_BYTES` | 16 MiB | Max MCP request body; a smaller `GRILL_INGEST_MAX_BYTES` lowers it. `0` = unlimited. Exceeding it returns a plain-text `413`. |
 | `GRILL_TRUSTED_ORIGINS` | unset | Comma-separated origins allowed to make cross-origin state-changing requests. Only browser pages calling the server directly need this; non-browser MCP clients send neither `Sec-Fetch-Site` nor `Origin` and are always allowed. A sibling subdomain counts as cross-origin. |
 

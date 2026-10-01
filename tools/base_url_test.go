@@ -12,7 +12,7 @@ func TestAPIAndStatusBaseURL(t *testing.T) {
 		{"defaults", "", "", "https://api.index4.ai/index4ai/v1", "https://api.index4.ai/status/v1"},
 		{"origin only", "https://api-dev.index4.ai", "", "https://api-dev.index4.ai/index4ai/v1", "https://api-dev.index4.ai/status/v1"},
 		{"versioned base", "https://api-dev.index4.ai/index4ai/v1/", "", "https://api-dev.index4.ai/index4ai/v1", "https://api-dev.index4.ai/status/v1"},
-		{"gateway /v1 rewrite", "https://api.index4.ai/v1", "", "https://api.index4.ai/v1", "https://api.index4.ai/status/v1"},
+		{"grill-era version path is replaced", "https://api.poma-ai.com/v3", "", "https://api.poma-ai.com/index4ai/v1", "https://api.poma-ai.com/status/v1"},
 		{"status override", "", "http://127.0.0.1:9090", "https://api.index4.ai/index4ai/v1", "http://127.0.0.1:9090/status/v1"},
 	}
 	for _, tt := range tests {
