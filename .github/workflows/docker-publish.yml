@@ -8,6 +8,16 @@ name: Docker
 on:
   push:
     branches: ["main"]
+    # Build only when something that goes into the image changes. Docs, plugins/ and
+    # .claude-plugin/ do not reach the binary, so a push touching only those builds
+    # nothing and deploys nothing. Add a path here if the build starts reading it.
+    paths:
+    - "**.go"
+    - "go.mod"
+    - "go.sum"
+    - "Dockerfile"
+    - ".dockerignore"
+    - ".github/workflows/docker-publish.yml"
     # Publish semver tags as releases.
     # tags: [ 'v*.*.*' ]
 
