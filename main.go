@@ -1,0 +1,184 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/poma-ai/index4ai-mcp/oauth"
+	"github.com/poma-ai/index4ai-mcp/tools"
+)
+
+// version is overridden at build time via -ldflags "-X main.version=<tag>".
+var version = "dev"
+
+var httpAddr = flag.String("http", ":8080", "address to serve MCP over HTTP on")
+
+// apiKeyMiddleware extracts an API token from the incoming HTTP request and injects
+// it into the request context for the tool handlers. Precedence: x-api-key header,
+// then Authorization: Bearer <token>.
+func apiKeyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if key := r.Header.Get("x-api-key"); key != "" {
+			r = r.WithContext(tools.WithAPIToken(r.Context(), key))
+		} else if auth := r.Header.Get("Authorization"); len(auth) > 7 && auth[:7] == "Bearer " {
+			r = r.WithContext(tools.WithAPIToken(r.Context(), auth[7:]))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// loggingMiddleware wraps an http.Handler to log requests.
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rw, r)
+		if r.URL.Path == "/health" {
+			return
+		}
+		slog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"remote", r.RemoteAddr,
+			"status", rw.status,
+		)
+	})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func main() {
+	flag.Parse()
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	server := mcp.NewServer(&mcp.Implementation{
+		Name:    "index4ai-mcp",
+		Version: version,
+	}, nil)
+	tools.Register(server)
+
+	runHttpMcpServer(server)
+}
+
+// crossOriginProtection builds the CSRF guard for the HTTP server, trusting any
+// origins listed in GRILL_TRUSTED_ORIGINS (comma-separated, each
+// "scheme://host[:port]").
+//
+// Only a browser page calling this server directly needs an entry here. Requests
+// carrying neither Sec-Fetch-Site nor Origin — which is every non-browser MCP
+// client — are allowed regardless, and GET/HEAD/OPTIONS are always allowed. Note
+// that a sibling subdomain is cross-origin for this purpose (the browser sends
+// Sec-Fetch-Site: same-site), so it needs listing too.
+func crossOriginProtection(trusted string) *http.CrossOriginProtection {
+	p := http.NewCrossOriginProtection()
+	for _, origin := range strings.Split(trusted, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if err := p.AddTrustedOrigin(origin); err != nil {
+			slog.Warn("ignoring invalid GRILL_TRUSTED_ORIGINS entry", "origin", origin, "err", err)
+			continue
+		}
+		slog.Info("trusting cross-origin requests", "origin", origin)
+	}
+	return p
+}
+
+func runHttpMcpServer(server *mcp.Server) {
+	// Stateless mode, per the sessionless direction of protocol version 2026-07-28
+	// (SEP-2567 / SEP-2575): no initialize/initialized handshake, no Mcp-Session-Id,
+	// each POST carries its protocol version and client capabilities in _meta and is
+	// served by a temporary session. GET and DELETE on the MCP path return 405.
+	//
+	// This suits the deployment: every tool is a self-contained request/response, the
+	// per-call token comes from the HTTP headers (apiKeyMiddleware), and the server
+	// never initiates a client request. Job-status progress notifications still reach
+	// the client because they are emitted inside the originating request's context.
+	mcpHandler := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return server },
+		&mcp.StreamableHTTPOptions{
+			Stateless: true,
+			// go-sdk caps request bodies at DefaultMaxRequestBodyBytes (4 MiB) when
+			// this is zero, which is too small for a base64 file inside a JSON-RPC
+			// message.
+			MaxRequestBodyBytes: tools.MCPRequestBodyBytes(),
+		},
+	)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	// Always register the RFC 9728 protected-resource well-known endpoint.
+	// The authorization server has moved to poma-services-go; the MCP is a thin
+	// protected resource pointing IDEs at the api to authorize.
+	//
+	// POMA_GRILL_ENABLE_OAUTH is no longer read — it is a no-op if set.
+	oauth.Register(mux, *httpAddr)
+
+	// When POMA_API_JWT_SECRET is set the deployment uses full OAuth JWT verification.
+	// Otherwise fall through to the legacy api-key-only path.
+	//
+	// apiKeyMiddleware is applied at the server level (loggingMiddleware → apiKeyMiddleware →
+	// mux) so that ALL routes — including /ingest-upload and any future additions — have the
+	// per-request token injected into context before their handlers run.
+	//
+	// RequireBearer is layered on top of "/" only (the MCP path) when JWT mode is active.
+	// /ingest-upload inherits token injection from apiKeyMiddleware at the server level, and
+	// its own handler already enforces that a non-empty token is present.
+	if os.Getenv("POMA_API_JWT_SECRET") != "" {
+		mux.Handle("/", oauth.RequireBearer(mcpHandler))
+	} else {
+		mux.Handle("/", mcpHandler)
+	}
+	mux.HandleFunc("/ingest-upload", tools.HandleIngestUpload)
+
+	// Cross-origin protection covers the whole mux, not just the MCP path.
+	//
+	// go-sdk v1.7.0 stopped applying a default CrossOriginProtection when the option
+	// is nil (v1.5.0 applied one to the MCP handler) and v1.8.0 removed the
+	// enableoriginverification escape hatch that restored it, so it has to be wrapped
+	// here anyway — and at the mux it also covers /ingest-upload, which the SDK never
+	// protected. That endpoint accepts any content type, so it must not be drivable
+	// by a cross-origin page in a user's browser. Safe methods are always
+	// allowed, so /health and the OAuth well-known endpoint are unaffected.
+	protected := crossOriginProtection(os.Getenv("GRILL_TRUSTED_ORIGINS")).Handler(mux)
+
+	httpServer := &http.Server{Addr: *httpAddr, Handler: loggingMiddleware(apiKeyMiddleware(protected))}
+
+	// Graceful shutdown: wait for SIGINT/SIGTERM, then drain in-flight requests.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		slog.Info("shutting down HTTP server")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			slog.Error("HTTP server shutdown error", "err", err)
+		}
+	}()
+
+	slog.Info("MCP HTTP server listening", "addr", *httpAddr, "mcp", "/", "ingest_upload", "/ingest-upload", "stateless", true)
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Error("HTTP server error", "err", err)
+		os.Exit(1)
+	}
+}

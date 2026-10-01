@@ -1,0 +1,397 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"mime"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/poma-ai/poma-cli/pkg/client"
+)
+
+const (
+	defaultAPIBaseURL    = "https://api.index4.ai"
+	defaultConsoleURL    = "https://console.index4.ai"
+	defaultVersionPrefix = "/index4ai/v1"
+	defaultStatusPrefix  = "/status/v1"
+)
+
+// apiBaseURLVersionSuffixRE matches a trailing API version path segment: /v then digits
+// (e.g. /index4ai/v1, or the gateway's /v1 rewrite of it).
+var apiBaseURLVersionSuffixRE = regexp.MustCompile(`/v[0-9]+$`)
+
+// apiOrigin is the scheme://host of the index4ai API: POMA_API_BASE_URL with any path
+// dropped, so both "https://api.index4.ai" and "https://api.index4.ai/index4ai/v1" work.
+func apiOrigin() string {
+	v := strings.TrimRight(os.Getenv("POMA_API_BASE_URL"), "/")
+	if v == "" {
+		return defaultAPIBaseURL
+	}
+	if u, err := url.Parse(v); err == nil && u.Scheme != "" && u.Host != "" {
+		return u.Scheme + "://" + u.Host
+	}
+	return v
+}
+
+// apiBaseURL is the versioned index4ai API root. A POMA_API_BASE_URL that already ends
+// in a version segment is used as-is; a bare origin gets /index4ai/v1.
+func apiBaseURL() string {
+	if v := strings.TrimRight(os.Getenv("POMA_API_BASE_URL"), "/"); v != "" {
+		if apiBaseURLVersionSuffixRE.MatchString(v) {
+			return v
+		}
+		return v + defaultVersionPrefix
+	}
+	return defaultAPIBaseURL + defaultVersionPrefix
+}
+
+// consoleURL is the web console that user-facing messages send people to (API keys,
+// usage, project settings). POMA_CONSOLE_URL overrides it (console-dev.index4.ai on dev).
+func consoleURL() string {
+	if v := strings.TrimSpace(os.Getenv("POMA_CONSOLE_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return defaultConsoleURL
+}
+
+// statusAPIBaseURL is the job-status SSE service. It is not under /index4ai/v1: the
+// gateway serves it at /status/v1 on the API host, so it hangs off apiOrigin.
+func statusAPIBaseURL() string {
+	if v := strings.TrimRight(os.Getenv("POMA_STATUS_API_BASE_URL"), "/"); v != "" {
+		if apiBaseURLVersionSuffixRE.MatchString(v) {
+			return v
+		}
+		return v + defaultStatusPrefix
+	}
+	return apiOrigin() + defaultStatusPrefix
+}
+
+// errResult returns a CallToolResult with IsError set. When the caller also
+// returns a non-nil output value, the SDK marshals that value into
+// StructuredContent and (since Content is nil here) auto-populates Content
+// with the marshaled JSON as a TextContent block. IsError: true is preserved
+// throughout, signaling a tool-level error to spec-compliant MCP clients.
+func errResult() *mcp.CallToolResult {
+	return &mcp.CallToolResult{IsError: true}
+}
+
+// Stable machine-readable error codes emitted alongside the human-readable
+// error string on every grill tool error. Clients branch on these (and on
+// Retryable), never on the prose message. See GrillError.
+const (
+	CodeMissingToken     = "missing_token"
+	CodeInvalidInput     = "invalid_input"
+	CodeAuthExpired      = "auth_expired"
+	CodePaymentRequired  = "payment_required"
+	CodeProjectProtected = "project_protected"
+	CodeForbidden        = "forbidden"
+	CodeTooManyJobs      = "too_many_jobs"
+	CodeUpstreamError    = "upstream_error"
+	CodeTransportError   = "transport_error"
+	CodeParseError       = "parse_error"
+	CodeJobFailed        = "job_failed"
+	CodeStreamError      = "stream_error"
+)
+
+// GrillError is the shared, embeddable error envelope for every grill tool
+// output. It is embedded anonymously into each output struct so its fields are
+// promoted to the top level of the JSON output: the `error` key is byte-for-byte
+// unchanged from before this envelope existed, and `code`/`retryable`/
+// `retry_after_seconds` are purely additive (all omitempty). A machine-readable
+// Code accompanies every error so clients can branch on it instead of
+// string-matching the prose Error. Retryable is true only for transient codes
+// (too_many_jobs, transport_error, stream_error, and 5xx upstream_error).
+type GrillError struct {
+	Error             string `json:"error,omitempty"`
+	Code              string `json:"code,omitempty"`
+	Retryable         bool   `json:"retryable,omitempty"`
+	RetryAfterSeconds int    `json:"retry_after_seconds,omitempty"`
+}
+
+// errOut builds a GrillError with a code and a formatted message. Retryable is
+// left false; call sites that need it (too_many_jobs, transport_error,
+// stream_error, 5xx upstream_error) set it explicitly.
+func errOut(code, format string, args ...any) GrillError {
+	return GrillError{Error: fmt.Sprintf(format, args...), Code: code}
+}
+
+// isRetryableCode is the single source of truth for the taxonomy's retry
+// contract: true only for too_many_jobs, transport_error, stream_error, and
+// upstream_error when httpStatus is 5xx. Pass httpStatus 0 for codes that
+// don't depend on it. Every call site that sets GrillError.Retryable derives
+// it from this function so the contract can't drift out of sync per-site.
+func isRetryableCode(code string, httpStatus int) bool {
+	switch code {
+	case CodeTooManyJobs, CodeTransportError, CodeStreamError:
+		return true
+	case CodeUpstreamError:
+		return httpStatus >= 500
+	default:
+		return false
+	}
+}
+
+func guessExtensionFromContent(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	ct := http.DetectContentType(data)
+	exts, err := mime.ExtensionsByType(ct)
+	if err != nil || len(exts) == 0 {
+		return ""
+	}
+	return exts[0]
+}
+
+// contextKeyAPIToken is the context key for a per-request API token injected by HTTP middleware.
+type contextKeyAPIToken struct{}
+
+// WithAPIToken returns a context carrying the given API token.
+func WithAPIToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, contextKeyAPIToken{}, token)
+}
+
+func grillClient(token string) *client.Client {
+	return client.New(apiBaseURL(), token)
+}
+
+// projectKeyPrefix is the wire prefix of project-bound API keys
+// (poma_proj_gr_… for grill, poma_proj_pc_… for PrimeCut). Account keys are
+// poma_acc_…; login JWTs have no prefix. Mirrors the gateway's
+// auth/mechanism constants.
+const projectKeyPrefix = "poma_proj_"
+
+// sourceProjectKey is the scope.source value when the project is selected by
+// the project API key itself rather than by an argument or env var.
+const sourceProjectKey = "project API key"
+
+// isProjectKey reports whether token is a project-bound API key. Such a key
+// selects exactly one project on the gateway: /projects (listing) refuses it
+// with 403, /projects/info returns the bound project, and a divergent
+// X-Project-ID is rejected with 409 project_id_conflict.
+func isProjectKey(token string) bool {
+	return strings.HasPrefix(token, projectKeyPrefix)
+}
+
+// projectIDSource resolves the project ID and reports where it came from, for
+// the human-readable scope hint. A project API key with no explicit selection
+// reports sourceProjectKey and an empty id: the gateway binds the project from
+// the key, so the server never needs to know the id up front.
+func projectIDSource(token, inputProjectID string) (id, source string) {
+	if inputProjectID != "" {
+		return inputProjectID, "project_id argument"
+	}
+	if isProjectKey(token) {
+		return "", sourceProjectKey
+	}
+	return "", "account default (no project_id set)"
+}
+
+// interpretProjectConflict recognises the gateway's 409 project_id_conflict:
+// the request carried an X-Project-ID (from the project_id argument) that differs from the project the presented project API key
+// is bound to. The key always wins on the gateway, so the request is
+// ambiguous and rejected. This is a configuration error on the caller's side,
+// classified invalid_input (terminal), never a transient upstream_error.
+func interpretProjectConflict(statusCode int, body []byte, operation string) (msg string, ok bool) {
+	if statusCode != http.StatusConflict {
+		return "", false
+	}
+	var errResp struct {
+		Code   json.RawMessage `json:"code"`
+		Reason string          `json:"reason"`
+	}
+	_ = json.Unmarshal(body, &errResp)
+	code := strings.Trim(string(errResp.Code), `"`)
+	if errResp.Reason != "project_id_conflict" && code != "project_id_conflict" {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"%s: project_id conflict (HTTP 409). The project_id argument names a different project "+
+			"than the one the project API key is bound to. A project key selects its project by itself: drop the project_id, "+
+			"or use an account API key to address other projects.",
+		operation,
+	), true
+}
+
+// getToken resolves the API token with this priority:
+//  1. Explicit tool argument
+//  2. Per-request token injected by HTTP middleware (x-api-key / Authorization header)
+//
+// There is deliberately no server-side fallback key: this is a hosted, multi-tenant
+// server, and a fallback would hand the operator's key to every unauthenticated caller.
+func getToken(ctx context.Context, inputToken string) string {
+	if inputToken != "" {
+		return inputToken
+	}
+	if v, ok := ctx.Value(contextKeyAPIToken{}).(string); ok && v != "" {
+		return v
+	}
+	return ""
+}
+
+// tokenSource describes which credential was used, for error messages.
+func tokenSource(ctx context.Context, inputToken string) string {
+	if inputToken != "" {
+		return "per-call token argument"
+	}
+	if v, ok := ctx.Value(contextKeyAPIToken{}).(string); ok && v != "" {
+		return "x-api-key / Authorization header"
+	}
+	return "unknown"
+}
+
+// interpretAuthError returns a user-friendly error string and a stable error
+// code for 401/402/403 responses. Returns ("", "") if the status code is not an
+// auth/billing error (including capacity/quota 403s, which are handled by
+// interpretTooManyJobs and the batch quota path).
+func interpretAuthError(ctx context.Context, inputToken string, statusCode int, body []byte, operation string) (msg, code string) {
+	if statusCode != http.StatusUnauthorized && statusCode != http.StatusPaymentRequired && statusCode != http.StatusForbidden {
+		return "", ""
+	}
+
+	src := tokenSource(ctx, inputToken)
+
+	if statusCode == http.StatusPaymentRequired {
+		return fmt.Sprintf(
+			"%s: credits exceeded (HTTP 402). The account associated with the token provided via %s has no remaining credits. "+
+				"Visit %s to check your usage and upgrade your plan.",
+			operation, src, consoleURL(),
+		), CodePaymentRequired
+	}
+
+	if statusCode == http.StatusUnauthorized {
+		return fmt.Sprintf(
+			"%s: authentication failed (HTTP 401). The token provided via %s is invalid, expired, or malformed. "+
+				"Generate a valid API key at %s and set it as the Authorization (Bearer) or x-api-key header in your MCP client config, or pass it as the token argument.",
+			operation, src, consoleURL(),
+		), CodeAuthExpired
+	}
+
+	// 403 — try to parse the JSON error envelope for a specific message.
+	//
+	// Two wire shapes: the migrated envelope carries a snake_case `reason`
+	// discriminator (and `code` becomes the numeric HTTP status), while the
+	// legacy envelope carries the discriminator as the string `code`. Switch on
+	// `reason` when present and never fall through to the code-string switch —
+	// the numeric code deserializes to "403" and matches no token. Only the
+	// pre-migration server (empty `reason`) uses the legacy string `code`.
+	var errResp struct {
+		Code   json.RawMessage `json:"code"`
+		Reason string          `json:"reason"`
+	}
+	if json.Unmarshal(body, &errResp) == nil {
+		code := strings.Trim(string(errResp.Code), `"`)
+		projectProtectedMsg := fmt.Sprintf(
+			"%s: this project is protected (HTTP 403). The token provided via %s is an account-level key, "+
+				"but this project requires a project API key. Generate one at %s in the project settings, "+
+				"or set the project to unprotected.",
+			operation, src, consoleURL(),
+		)
+		forbiddenMsg := fmt.Sprintf(
+			"%s: access denied (HTTP 403). The token provided via %s does not have access to this project — "+
+				"you may not own it or aren't a member of the organization. "+
+				"Use index4ai_projects to list projects accessible with your current key.",
+			operation, src,
+		)
+		if errResp.Reason != "" {
+			switch errResp.Reason {
+			case "too_many_jobs", "quota_exceeded":
+				// Not an auth error — this is a capacity/quota limit.
+				return "", ""
+			case "project_protected":
+				return projectProtectedMsg, CodeProjectProtected
+			case "forbidden":
+				return forbiddenMsg, CodeForbidden
+			}
+		} else {
+			switch code {
+			case "too_many_jobs", "quota_exceeded":
+				// Not an auth error — this is a capacity/quota limit.
+				return "", ""
+			case "project_protected":
+				return projectProtectedMsg, CodeProjectProtected
+			case "forbidden":
+				return forbiddenMsg, CodeForbidden
+			}
+		}
+	}
+
+	// Legacy: plain-text "too many jobs" from older API versions.
+	bodyStr := strings.TrimSpace(string(body))
+	if bodyStr == "too many jobs" || bodyStr == "quota exceeded" {
+		return "", ""
+	}
+
+	return fmt.Sprintf(
+		"%s: forbidden (HTTP 403). The token provided via %s was rejected. Response: %s",
+		operation, src, bodyStr,
+	), CodeForbidden
+}
+
+// interpretTooManyJobs recognises the job-capacity backpressure signal and, when
+// present, returns an explicit throttle instruction plus the suggested retry
+// delay in seconds. ok is false for any other response.
+//
+// The signal is HTTP 429 with code "too_many_jobs" (current API), a legacy 403
+// carrying the same code, or the legacy plaintext body "too many jobs". The API
+// also sets a Retry-After header, but the JSON body's retry_after_seconds
+// carries the same hint and is what we can read here without header access.
+//
+// The message is written FOR the calling agent (e.g. langdock firing a
+// pipeline): it states that the ingest did NOT happen, that this is transient
+// (retry the same ingest after the delay), and that it must stop sending new
+// ingests until capacity frees. This tool result is the only backpressure
+// channel an LLM client sees, so it has to be an imperative instruction, not a
+// terse error.
+func interpretTooManyJobs(statusCode int, body []byte) (msg string, retryAfter int, ok bool) {
+	// code is numeric (429) on the current API and a string ("too_many_jobs") on
+	// legacy 403 responses — RawMessage accepts either without a decode error.
+	var errResp struct {
+		Code              json.RawMessage `json:"code"`
+		Reason            string          `json:"reason"`
+		Error             string          `json:"error"`
+		Message           string          `json:"message"`
+		RetryAfterSeconds int             `json:"retry_after_seconds"`
+	}
+	_ = json.Unmarshal(body, &errResp)
+	code := strings.Trim(string(errResp.Code), `"`)
+
+	isCapacity := statusCode == http.StatusTooManyRequests ||
+		errResp.Reason == "too_many_jobs" ||
+		code == "too_many_jobs" ||
+		strings.TrimSpace(string(body)) == "too many jobs"
+	if !isCapacity {
+		return "", 0, false
+	}
+
+	retryAfter = errResp.RetryAfterSeconds
+	if retryAfter <= 0 {
+		retryAfter = 5
+	}
+
+	// The migrated envelope renames the human field message→error; read error
+	// first so the LLM detail stays populated across the rename, falling back to
+	// the legacy message and finally the raw body.
+	detail := errResp.Error
+	if detail == "" {
+		detail = errResp.Message
+	}
+	if detail == "" {
+		detail = strings.TrimSpace(string(body))
+	}
+
+	msg = fmt.Sprintf(
+		"index4ai ingest: job queue full — the account is at its concurrent-job capacity (too_many_jobs). "+
+			"This is a TRANSIENT backpressure signal, NOT a failure: the document was NOT ingested and no credits were spent. "+
+			"Wait ~%ds, then retry this same ingest. Do NOT send more ingests until capacity frees — "+
+			"poll index4ai_jobs_status and resume only once active jobs drop below the account limit. Server: %s",
+		retryAfter, detail,
+	)
+	return msg, retryAfter, true
+}

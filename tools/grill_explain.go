@@ -1,0 +1,115 @@
+package tools
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// -- index4ai Explain ------------------------------------------------------
+
+// grillExplanation's {{CONSOLE_URL}} is replaced with consoleURL() when served.
+const grillExplanation = `# index4ai
+
+index4ai is a managed context engine. Ingest any document, then search it with natural language.
+
+## Quick Start
+
+1. Get API key from {{CONSOLE_URL}}
+2. ` + "`index4ai_ingest_sync`" + ` with your file → get ` + "`job_id`" + `
+3. ` + "`index4ai_search`" + ` with your question (optionally set ` + "`doc_filter`" + ` to the ` + "`job_id`" + `)
+
+## Getting an API Key
+
+1. Go to {{CONSOLE_URL}}
+2. Create a new project
+3. Copy the generated API key
+4. Set it as the ` + "`Authorization: Bearer <key>`" + ` (or ` + "`x-api-key`" + `) header in your MCP client config, or pass it as the ` + "`token`" + ` argument to any tool
+
+## Ingesting Data
+
+index4ai accepts files in any format — PDF, DOCX, TXT, HTML, CSV, Markdown, Json, images, and more. The server handles parsing, chunking, and embedding automatically.
+
+**How to ingest:**
+- Use ` + "`index4ai_ingest`" + ` with either ` + "`file_base64`" + ` (small files) or ` + "`url`" + ` (the server fetches it; use for large files) — returns immediately with a ` + "`job_id`" + `
+- Use ` + "`index4ai_ingest_sync`" + ` with the same arguments — waits until processing completes
+
+**What happens server-side:**
+1. File is uploaded to the index4ai API
+2. A job is created — you receive a ` + "`job_id`" + `
+3. The file is parsed, chunked, and embedded
+4. Once status reaches "done", the document is searchable
+5. The ` + "`job_id`" + ` doubles as ` + "`doc_id`" + ` for search filtering — except when the final status carries a ` + "`grill`" + ` object; then ` + "`grill.doc_id`" + ` is the document to filter on (it differs from ` + "`job_id`" + ` on a dedup hit)
+
+**Tracking progress:**
+- ` + "`index4ai_ingest_sync`" + ` streams status events until completion
+- ` + "`index4ai_ingest_resume`" + ` reconnects to a running job's status stream
+- ` + "`index4ai_jobs_status`" + ` polls current status for one or more jobs
+
+## Searching
+
+Use ` + "`index4ai_search`" + ` with a natural-language ` + "`query`" + `. The API performs semantic search across all ingested documents.
+
+**Options:**
+- ` + "`doc_filter`" + `: restrict search to a single document (pass the ` + "`job_id`" + ` from ingest as ` + "`doc_id`" + `, or ` + "`grill.doc_id`" + ` whenever the result carried a ` + "`grill`" + ` object)
+- ` + "`exclude_doc_ids`" + `: skip documents already cited (useful in agent loops)
+- ` + "`return_assets`" + `: return the cited documents' figures/tables in the ` + "`assets`" + ` output field (keyed by doc_id; images are base64 data URIs)
+- ` + "`return_page_images`" + `: DEPRECATED / not available — no-op today (page screenshots are not returned inline)
+
+## Search Results
+
+` + "`index4ai_search`" + ` returns a single ` + "`context`" + ` field — a concatenated block of the most relevant text chunks, ready for RAG prompting. The server controls result count based on relevance and a token budget.
+
+Example response:
+{"context": "<context>\n<doc n=\"1\" id=\"a2541012-a205-4224-816e-23be45bd4826\" rel=\"0.03\">\nChapter 3: Revenue Model\nThe company generates revenue through three primary channels...\n</doc>\n</context>"}
+
+The context block is designed to be inserted directly into an LLM prompt as grounding material.
+
+## Project Selection
+
+You can authenticate with either a **project API key** or an **account-level API key**.
+
+- **Project API key**: Identifies the project automatically. No ` + "`project_id`" + ` needed.
+- **Account API key** or **login token**: Pass ` + "`project_id`" + ` on each tool call, or use ` + "`index4ai_projects`" + ` to find project IDs by name.
+
+Use ` + "`index4ai_projects`" + ` to list your accessible projects and find project IDs.
+
+> **Note:** Your account key grants access to all unprotected projects in your organizations.`
+
+var grillExplainInputSchema = &jsonschema.Schema{
+	Type:       "object",
+	Properties: map[string]*jsonschema.Schema{},
+}
+
+var grillExplainOutputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"explanation": {Type: "string", Description: "Markdown-formatted explanation of index4ai."},
+	},
+}
+
+var grillExplainTool = &mcp.Tool{
+	Name: "index4ai_explain",
+	Annotations: &mcp.ToolAnnotations{
+		Title:         "Explain index4ai",
+		ReadOnlyHint:  true,
+		OpenWorldHint: boolPtr(false),
+	},
+	Description:  "Returns a structured explanation of how index4ai works: ingesting data, searching, result format, and how to get an API key. No arguments or authentication required.",
+	InputSchema:  grillExplainInputSchema,
+	OutputSchema: grillExplainOutputSchema,
+}
+
+type GrillExplainInput struct{}
+
+type GrillExplainOutput struct {
+	Explanation string `json:"explanation"`
+}
+
+func GrillExplain(ctx context.Context, _ *mcp.CallToolRequest, _ GrillExplainInput) (*mcp.CallToolResult, GrillExplainOutput, error) {
+	slog.Info("index4ai explain")
+	return nil, GrillExplainOutput{Explanation: strings.ReplaceAll(grillExplanation, "{{CONSOLE_URL}}", consoleURL())}, nil
+}
