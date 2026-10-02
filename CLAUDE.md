@@ -16,7 +16,7 @@ The `tools` tests also run under a no-live-API guard (`tools/no_live_api_test.go
 
 ## API surface
 
-The contract is `poma-services-go/docs/api/index4ai/v1/openapi.yaml` (generated from v3: `/grill/X` becomes `/X`, primeCut dropped). All calls go to `apiBaseURL()` = `https://api.index4.ai/index4ai/v1` (`tools/common.go`), wrappers in `tools/grill_client.go`:
+The contract is `poma-services-go/docs/api/index4ai/v1/openapi.yaml` (generated from v3: `/grill/X` becomes `/X`, primeCut dropped). All calls go to `apiBaseURL()` = `https://api.index4.ai/v1` (`tools/common.go`; `/index4ai/v1` on a non-index4.ai host such as the test stubs, where `/v1` is the retired POMA API v1), wrappers in `tools/grill_client.go`:
 
 | Call | Path |
 |------|------|
@@ -28,7 +28,7 @@ The contract is `poma-services-go/docs/api/index4ai/v1/openapi.yaml` (generated 
 | job status poll | `GET /jobs/{job_id}/status` |
 
 Two footguns:
-- The status SSE stream is not under `/index4ai/v1`. It is `https://api.index4.ai/status/v1/jobs/{job_id}`, derived from the API origin (`statusAPIBaseURL`).
+- The status SSE stream is not under the API version path. It is `https://api.index4.ai/status/v1/jobs/{job_id}`, derived from the API origin (`statusAPIBaseURL`).
 - OAuth is not on the index4ai host. `api(-dev).index4.ai/.well-known/oauth-authorization-server` answers with issuer `https://api(-dev).poma-ai.com`, so the protected-resource metadata advertises that host (`POMA_AUTH_SERVER_URL`, else derived from `POMA_API_BASE_URL` by mapping `.index4.ai` to `.poma-ai.com`), never the API host. A fixed prod default would put dev users on the prod login.
 
 The API still names the job-status dedup object `grill` (`grill.doc_id` etc.), so tool output and descriptions keep that key.

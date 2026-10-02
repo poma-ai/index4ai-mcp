@@ -108,7 +108,11 @@ func isLoopbackAddr(addr string) bool {
 func TestNoLiveAPIGuardRefusesDefaultHost(t *testing.T) {
 	t.Setenv("POMA_API_BASE_URL", "")
 	c := grillClient("tok")
-	tr, _ := c.HTTP.Transport.(*http.Transport)
+	rt := c.HTTP.Transport
+	if at, ok := rt.(*apiTransport); ok {
+		rt = at.base
+	}
+	tr, _ := rt.(*http.Transport)
 	if tr == nil || tr.DialContext == nil {
 		t.Fatal("guard not installed on grillClient's transport")
 	}
