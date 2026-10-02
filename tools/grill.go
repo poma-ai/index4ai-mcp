@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -82,28 +81,6 @@ var grillIngestInputSchema = &jsonschema.Schema{
 }
 
 const ingestURLDescription = "Remote URL for the index4ai server to fetch and ingest. Mutually exclusive with file_base64. The MCP does not download it — the server fetches the URL. Preferred for large files."
-
-// serializeLabels renders ingest labels as the X-Labels header value: "key:value"
-// pairs with keys sorted for a deterministic header, joined by ",". Keys that are
-// empty/whitespace-only are skipped.
-func serializeLabels(labels map[string]string) string {
-	if len(labels) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(labels))
-	for k := range labels {
-		if strings.TrimSpace(k) == "" {
-			continue
-		}
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, k+":"+labels[k])
-	}
-	return strings.Join(parts, ",")
-}
 
 // grillOutcomeSchema describes the optional `grill` object the gateway attaches
 // to a job status (poma-services-go#133). Omitted when the gateway did not send it.
@@ -198,11 +175,11 @@ func grillIngestWithWait(ctx context.Context, req *mcp.CallToolRequest, input Gr
 	}
 
 	projectID := input.ProjectID
-	attrHdr, schemaHdr, aerr := encodeIngestAttributes(input.Attributes, input.AttributeSchema)
+	// Legacy labels travel as attributes.labels; no X-Labels header (D157).
+	meta, aerr := encodeIngestMeta(labelItemsFromMap(input.Labels), labelsSourceArg, input.Attributes, input.AttributeSchema)
 	if aerr != nil {
 		return errResult(), GrillIngestOutput{GrillError: errOut(CodeInvalidInput, "%s", aerr.Error())}, nil
 	}
-	meta := ingestHeaders{Labels: serializeLabels(input.Labels), Attributes: attrHdr, AttributeSchema: schemaHdr}
 	c := grillClient(token)
 
 	var body []byte

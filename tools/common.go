@@ -164,10 +164,19 @@ func WithAPIToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, contextKeyAPIToken{}, token)
 }
 
+// testClientHook is nil in production. Tests set it (tools TestMain) to adjust
+// every API client grillClient builds — there, to refuse any dial that is not
+// to a loopback stub, so no test can reach a live API.
+var testClientHook func(*client.Client)
+
 // grillClient builds the API client for one tool call; see apiTransport for the
-// origin and trace headers it adds.
+// origin and trace headers it adds. The test hook runs before the wrapper
+// because it type-asserts the base *http.Transport.
 func grillClient(token string) *client.Client {
 	c := client.New(apiBaseURL(), token)
+	if testClientHook != nil {
+		testClientHook(c)
+	}
 	c.HTTP.Transport = withAPITransport(c.HTTP.Transport)
 	return c
 }
