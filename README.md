@@ -69,7 +69,7 @@ Provide exactly one of `file_base64` or `url`.
 | `filename` | string | Original basename (e.g. `report.pdf`). Inferred from content when omitted. |
 | `attributes` | object | Typed document attributes, `{name: value}`. Values are strings, numbers, booleans, or non-empty arrays of one kind. Names match `^[a-z0-9_]{1,64}$`, are permanent per project and count against `max_names`. Sent as `X-Attributes`, capped at 64 names and 2048 characters. |
 | `attribute_schema` | object | Type declarations `{name: {"type": "<type>"}}` for names in `attributes`, only where the value cannot say the type (`encrypted_text` always, `datetime` for a new name, the array type of an empty array). |
-| `labels` | object | Legacy, being retired in favour of `attributes`. Sent as `X-Labels`. |
+| `labels` | object | Legacy, being retired in favour of `attributes`. Sent as the `labels` attribute: each `{key: value}` pair becomes a `"key:value"` string in `attributes.labels` (sorted by key, after any `labels` you pass in `attributes`, duplicates dropped); no `X-Labels` header. index4ai types `labels` as `[]encrypted_text` (matched by token) unless the project already owns `labels` with another type, which then governs (an incompatible one fails at index4ai). Labels share the attribute limits: 64 elements, 64 names, 2048 characters of `X-Attributes`. Avoid `:` in keys. |
 
 ### `index4ai_search` arguments
 
@@ -97,10 +97,11 @@ On error the MCP result has `isError: true`, a prose `error`, and a stable `code
 
 ## Large uploads: `POST /ingest-upload`
 
-Uploads a file without going through an MCP message. Same auth as MCP (`x-api-key` or `Authorization: Bearer`). Optional `X-Project-ID` and `X-Labels` headers are forwarded.
+Uploads a file without going through an MCP message. Same auth as MCP (`x-api-key` or `Authorization: Bearer`). Optional `X-Project-ID` is forwarded.
 
 - Raw body (`application/octet-stream` or any non-multipart type), basename via `?filename=report.pdf` or `X-Filename`.
 - Multipart (`multipart/form-data`) with a part named `file`.
+- Metadata (optional): `X-Attributes` (JSON object) and `X-Attribute-Schema`, validated like the tools' `attributes` / `attribute_schema` before the body is read. A legacy `X-Labels` header (`key:value` items, comma-joined) is translated into the `labels` attribute and merged after any `labels` in `X-Attributes`; only `X-Attributes` is sent upstream, never `X-Labels`. Invalid metadata is a `400` `invalid_input`.
 
 Response `201` with `{"job_id":"…"}`.
 

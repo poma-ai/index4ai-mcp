@@ -152,8 +152,17 @@ func WithAPIToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, contextKeyAPIToken{}, token)
 }
 
+// testClientHook is nil in production. Tests set it (tools TestMain) to adjust
+// every API client grillClient builds — there, to refuse any dial that is not
+// to a loopback stub, so no test can reach a live API.
+var testClientHook func(*client.Client)
+
 func grillClient(token string) *client.Client {
-	return client.New(apiBaseURL(), token)
+	c := client.New(apiBaseURL(), token)
+	if testClientHook != nil {
+		testClientHook(c)
+	}
+	return c
 }
 
 // projectKeyPrefix is the wire prefix of project-bound API keys
