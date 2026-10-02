@@ -2,9 +2,9 @@ package tools
 
 // index4ai HTTP client wrappers around (*client.Client).Do / DoJSON.
 //
-// Paths are relative to apiBaseURL() (https://api.index4.ai/index4ai/v1). index4ai
-// serves the retrieval product at the root: /index4ai/v1/ingest is what /api/v4/grill/ingest
-// is on the POMA API (poma-services-go docs/api/index4ai/v1/openapi.yaml).
+// Paths are relative to apiBaseURL() (https://api.index4.ai/v1). index4ai serves the
+// retrieval product at the root: /v1/ingest is what /api/v4/grill/ingest is on the POMA
+// API (poma-services-go docs/api/index4ai/v1/openapi.yaml).
 
 import (
 	"bytes"

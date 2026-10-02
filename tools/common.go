@@ -16,14 +16,20 @@ import (
 )
 
 const (
-	defaultAPIBaseURL    = "https://api.index4.ai"
-	defaultConsoleURL    = "https://console.index4.ai"
-	defaultVersionPrefix = "/index4ai/v1"
+	defaultAPIBaseURL = "https://api.index4.ai"
+	defaultConsoleURL = "https://console.index4.ai"
+	// defaultVersionPrefix is the version path on the index4ai hosts, whose gateway
+	// rewrites /v1/* to /index4ai/v1/*. mountedVersionPrefix is the path the API itself
+	// serves, used on any other host (api.poma-ai.com, a local api, test stubs), where
+	// /v1 is the retired POMA API v1 and answers 410.
+	defaultVersionPrefix = "/v1"
+	mountedVersionPrefix = "/index4ai/v1"
+	index4aiDomain       = "index4.ai"
 	defaultStatusPrefix  = "/status/v1"
 )
 
 // apiOrigin is the scheme://host of the index4ai API: POMA_API_BASE_URL with any path
-// dropped, so "https://api.index4.ai" and "https://api.index4.ai/index4ai/v1" both work.
+// dropped, so "https://api.index4.ai", ".../v1" and ".../index4ai/v1" all work.
 func apiOrigin() string {
 	v := strings.TrimRight(strings.TrimSpace(os.Getenv("POMA_API_BASE_URL")), "/")
 	if v == "" {
@@ -35,12 +41,18 @@ func apiOrigin() string {
 	return v
 }
 
-// apiBaseURL is the versioned index4ai API root, always <origin>/index4ai/v1. Any path on
-// POMA_API_BASE_URL is replaced rather than kept: a grill-era value such as
-// https://api.poma-ai.com/v3 would otherwise send every call to /v3/ingest, which does
-// not exist (v3 serves /v3/grill/ingest).
+// apiBaseURL is the versioned index4ai API root: <origin>/v1 on an index4.ai host,
+// <origin>/index4ai/v1 anywhere else. Any path on POMA_API_BASE_URL is replaced rather
+// than kept: a grill-era value such as https://api.poma-ai.com/v3 would otherwise send
+// every call to /v3/ingest, which does not exist (v3 serves /v3/grill/ingest).
 func apiBaseURL() string {
-	return apiOrigin() + defaultVersionPrefix
+	origin := apiOrigin()
+	if u, err := url.Parse(origin); err == nil {
+		if h := u.Hostname(); h == index4aiDomain || strings.HasSuffix(h, "."+index4aiDomain) {
+			return origin + defaultVersionPrefix
+		}
+	}
+	return origin + mountedVersionPrefix
 }
 
 // consoleURL is the web console that user-facing messages send people to (API keys,
@@ -55,7 +67,7 @@ func consoleURL() string {
 // statusVersionSuffixRE matches a POMA_STATUS_API_BASE_URL that already names a version.
 var statusVersionSuffixRE = regexp.MustCompile(`/v[0-9]+$`)
 
-// statusAPIBaseURL is the job-status SSE service. It is not under /index4ai/v1: the
+// statusAPIBaseURL is the job-status SSE service. It is not under the API version: the
 // gateway serves it at /status/v1 on the API host, so it hangs off apiOrigin.
 func statusAPIBaseURL() string {
 	if v := strings.TrimRight(os.Getenv("POMA_STATUS_API_BASE_URL"), "/"); v != "" {
@@ -152,8 +164,12 @@ func WithAPIToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, contextKeyAPIToken{}, token)
 }
 
+// grillClient builds the API client for one tool call; see apiTransport for the
+// origin and trace headers it adds.
 func grillClient(token string) *client.Client {
-	return client.New(apiBaseURL(), token)
+	c := client.New(apiBaseURL(), token)
+	c.HTTP.Transport = withAPITransport(c.HTTP.Transport)
+	return c
 }
 
 // projectKeyPrefix is the wire prefix of project-bound API keys

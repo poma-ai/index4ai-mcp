@@ -2,7 +2,7 @@
 
 A hosted [Model Context Protocol](https://modelcontextprotocol.io) server for the [index4ai](https://index4.ai) context engine. Ingest documents and run semantic search from any MCP client (Claude Code, Claude Desktop, Cursor, or your own agent).
 
-The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). The hosts serve once the `index4ai-mcp` ArgoCD apps are enabled in poma-deploy (`clusters/gke-poma-nl/argocd/kustomization.yaml`). It talks to the index4ai API at `https://api.index4.ai/index4ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
+The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). The hosts serve once the `index4ai-mcp` ArgoCD apps are enabled in poma-deploy (`clusters/gke-poma-nl/argocd/kustomization.yaml`). It talks to the index4ai API at `https://api.index4.ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
 
 ## Connect your agent
 
@@ -114,7 +114,7 @@ The image is built and pushed to `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` on e
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `POMA_API_BASE_URL` | `https://api.index4.ai` | index4ai API host. Only the origin is used; calls go to `<origin>/index4ai/v1`. Dev: `https://api-dev.index4.ai`. |
+| `POMA_API_BASE_URL` | `https://api.index4.ai` | index4ai API host. Only the origin is used; calls go to `<origin>/v1` on an index4.ai host, `<origin>/index4ai/v1` on any other. Dev: `https://api-dev.index4.ai`. |
 | `POMA_STATUS_API_BASE_URL` | API host + `/status/v1` | Job-status SSE service. |
 | `POMA_AUTH_SERVER_URL` | derived | OAuth authorization server advertised in the protected-resource metadata. Must be the issuer the api reports, which is the poma-ai.com host of the same environment even on the index4ai hosts. Unset, it is derived from `POMA_API_BASE_URL` (`api-dev.index4.ai` → `https://api-dev.poma-ai.com`), falling back to `https://api.poma-ai.com`. |
 | `POMA_API_JWT_SECRET` | unset | Enables local verification of OAuth bearer JWTs (HMAC-SHA256, `aud`, `exp`, `typ`). Must match the api. Requires `POMA_MCP_RESOURCE`. |

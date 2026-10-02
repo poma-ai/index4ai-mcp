@@ -146,7 +146,7 @@ A large local file the agent cannot hand over as a URL can bypass the MCP messag
 - `POST https://mcp.index4.ai/ingest-upload` with the raw bytes (`?filename=report.pdf`) or
   a multipart field `file`, authenticated with the same `x-api-key` / `Authorization:
   Bearer` header. It returns `{"job_id": "…"}`.
-- Or `POST` the bytes to the index4ai API itself, `https://api.index4.ai/index4ai/v1/ingest`,
+- Or `POST` the bytes to the index4ai API itself, `https://api.index4.ai/v1/ingest`,
   with `Content-Type: application/octet-stream` and
   `Content-Disposition: attachment; filename="…"`.
 
