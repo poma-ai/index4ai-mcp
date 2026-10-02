@@ -12,6 +12,7 @@ go run . -http 127.0.0.1:8080
 ```
 
 Tests are offline (`httptest` stubs). They point `POMA_API_BASE_URL` at the stub, so stub paths are `/index4ai/v1/...`.
+The `tools` tests also run under a no-live-API guard (`tools/no_live_api_test.go`): `TestMain` clears key and project env vars, points the default API host at a dead stub, and installs a loopback-only dialer on every client `grillClient` builds, so any request that would leave the machine fails the run.
 
 ## API surface
 
