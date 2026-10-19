@@ -16,3 +16,4 @@ events.jsonl
 .mcp.json.local
 # Agent-plugin packages ship their own Claude Code MCP declaration; it must be tracked.
 !plugins/**/.mcp.json
+megavibe-deliverables
