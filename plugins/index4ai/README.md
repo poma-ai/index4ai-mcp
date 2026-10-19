@@ -86,7 +86,7 @@ documents by `url` and small ones by `file_base64`; large local files go through
 
 ## Versioning
 
-`plugin.json` tracks the tool surface it documents (currently `0.1.0`). When the tools in
+`plugin.json` tracks the tool surface it documents (currently `0.2.0`). When the tools in
 `tools/` change, update the skills and bump `version` here, in
 `.claude-plugin/plugin.json`, and in `/.claude-plugin/marketplace.json`.
 
