@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -134,4 +135,79 @@ func TestIngestBatchInputValidation(t *testing.T) {
 // AddTool panics on a schema the SDK rejects, so registering proves it is valid.
 func TestIngestBatchRegisters(t *testing.T) {
 	Register(mcp.NewServer(&mcp.Implementation{Name: "t", Version: "0"}, nil))
+}
+
+// Early validation errors must pass the SDK's output-schema validation: a nil
+// results would marshal as null and surface as a JSON-RPC error instead of a
+// classified result.
+func TestIngestBatchValidationErrorsSurviveTransport(t *testing.T) {
+	ctx := context.Background()
+	server := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "0"}, nil)
+	Register(server)
+	st, ct := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	for name, args := range map[string]map[string]any{
+		"no token":    {"items": []any{map[string]any{"url": "u"}}},
+		"empty items": {"token": "t", "items": []any{}},
+	} {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "index4ai_ingest_batch", Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: rpc error instead of a classified result: %v", name, err)
+		}
+		if !res.IsError {
+			t.Fatalf("%s: want IsError result", name)
+		}
+	}
+}
+
+// A legacy quota 403 (not an auth failure) is retryable backpressure, so the
+// item is bucketed quota_exceed rather than a terminal failure.
+func TestIngestBatchLegacyQuota403(t *testing.T) {
+	batchStub(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"reason":"quota_exceeded"}`))
+	})
+	_, out, _ := IngestBatch(context.Background(), nil, IngestBatchInput{Token: "tok", Items: []IngestBatchItem{{URL: "https://example.com/a.pdf"}}})
+	if out.QuotaExceededCount != 1 || !out.Results[0].QuotaExceed || !out.Results[0].Retryable {
+		t.Fatalf("out = %+v", out)
+	}
+}
+
+// Concurrency is clamped to the max, and an explicit 1 is honoured (serial).
+func TestIngestBatchConcurrencyCap(t *testing.T) {
+	var cur, peak atomic.Int32
+	batchStub(t, func(w http.ResponseWriter, r *http.Request) {
+		n := cur.Add(1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		cur.Add(-1)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"job_id":"j"}`))
+	})
+	items := make([]IngestBatchItem, 12)
+	for i := range items {
+		items[i] = IngestBatchItem{URL: fmt.Sprintf("https://example.com/%d.pdf", i)}
+	}
+	_, _, _ = IngestBatch(context.Background(), nil, IngestBatchInput{Token: "t", Items: items, Concurrency: 1})
+	if peak.Load() != 1 {
+		t.Fatalf("concurrency=1 peak = %d", peak.Load())
+	}
+	peak.Store(0)
+	_, _, _ = IngestBatch(context.Background(), nil, IngestBatchInput{Token: "t", Items: items, Concurrency: 99})
+	if peak.Load() > ingestBatchMaxConcurrent {
+		t.Fatalf("peak %d exceeds cap %d", peak.Load(), ingestBatchMaxConcurrent)
+	}
 }

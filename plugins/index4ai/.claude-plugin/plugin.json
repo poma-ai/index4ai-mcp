@@ -1,6 +1,6 @@
 {
   "name": "index4ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "index4ai — ingest documents into the index4ai context engine and run semantic search over them from any agent.",
   "author": {
     "name": "POMA AI",

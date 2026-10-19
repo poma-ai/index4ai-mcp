@@ -107,6 +107,11 @@ concurrent-job ceiling and **the document was not ingested**. Wait
 pause any further ingests until capacity frees up. When ingesting several files, submit
 them one at a time and check `index4ai_jobs_status` before sending more.
 
+`index4ai_ingest_batch` takes up to 50 `items` (each `url` or `file_base64`) and returns one
+`job_id` or error per item in `results`. Items refused with `too_many_jobs` carry
+`quota_exceed: true` and were not ingested: wait for running jobs, then resubmit only those.
+Set `concurrency` to 1 on free-tier accounts.
+
 ## Errors
 
 Every error carries a machine-readable `code`. Branch on the code, never on the prose

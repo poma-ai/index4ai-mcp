@@ -112,13 +112,13 @@ type IngestBatchOutput struct {
 func IngestBatch(ctx context.Context, _ *mcp.CallToolRequest, input IngestBatchInput) (*mcp.CallToolResult, IngestBatchOutput, error) {
 	token := getToken(ctx, input.Token)
 	if token == "" {
-		return errResult(), IngestBatchOutput{GrillError: errOut(CodeMissingToken, "token is required (set an API key as the Authorization: Bearer or x-api-key header in the MCP client config, or pass token)")}, nil
+		return errResult(), IngestBatchOutput{Results: []IngestBatchResult{}, GrillError: errOut(CodeMissingToken, "token is required (set an API key as the Authorization: Bearer or x-api-key header in the MCP client config, or pass token)")}, nil
 	}
 	if len(input.Items) == 0 {
-		return errResult(), IngestBatchOutput{GrillError: errOut(CodeInvalidInput, "items is required")}, nil
+		return errResult(), IngestBatchOutput{Results: []IngestBatchResult{}, GrillError: errOut(CodeInvalidInput, "items is required")}, nil
 	}
 	if len(input.Items) > ingestBatchMaxItems {
-		return errResult(), IngestBatchOutput{GrillError: errOut(CodeInvalidInput, "items exceeds limit of %d", ingestBatchMaxItems)}, nil
+		return errResult(), IngestBatchOutput{Results: []IngestBatchResult{}, GrillError: errOut(CodeInvalidInput, "items exceeds limit of %d", ingestBatchMaxItems)}, nil
 	}
 
 	concurrency := input.Concurrency
