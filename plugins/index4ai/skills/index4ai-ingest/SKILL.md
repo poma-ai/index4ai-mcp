@@ -104,7 +104,7 @@ which one is the default.
 A response with `code: "too_many_jobs"` and `retryable: true` means the account is at its
 concurrent-job ceiling and **the document was not ingested**. Wait
 `retry_after_seconds`, then retry the identical call. Do not retry in a tight loop, and
-pause any further ingests until capacity frees up. When ingesting several files, submit
+pause any further ingests until capacity frees up. When ingesting several files with `index4ai_ingest`, submit
 them one at a time and check `index4ai_jobs_status` before sending more.
 
 `index4ai_ingest_batch` takes up to 50 `items` (each `url` or `file_base64`) and returns one
