@@ -49,6 +49,7 @@ To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key
 | `index4ai_explain` | Explanation of how index4ai works: ingest flow, search, result format, API key setup. No arguments or auth. |
 | `index4ai_ingest` | Starts ingest and returns `job_id` after upload. Does not wait for indexing. |
 | `index4ai_ingest_sync` | Ingest and wait until the job reaches a terminal state. Returns `job_id` and status `events`. |
+| `index4ai_ingest_batch` | Ingest up to 50 documents (`url` or `file_base64` each) with bounded upload concurrency. Returns one `job_id` or error per item, in input order. Does not wait for indexing. |
 | `index4ai_ingest_resume` | Reconnect to an in-progress job's status stream and wait until terminal. |
 | `index4ai_jobs_status` | Status snapshots for up to 50 jobs in one call. No streaming. |
 | `index4ai_search` | Hybrid search returning concatenated context text for RAG. `doc_filter` restricts to one document. |
@@ -57,6 +58,12 @@ To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key
 | `index4ai_projects` | Accessible projects with their `project_id`. With a project API key, just the bound project. |
 
 Every tool accepts an optional `token` (overrides the header credential). All except `index4ai_explain`, `index4ai_ingest_resume`, `index4ai_jobs_status` and `index4ai_projects` accept an optional `project_id`, needed only with an account-level key.
+
+### `index4ai_ingest_batch` arguments
+
+`items` (required, 1 to 50): each item has exactly one of `url` or `file_base64`, plus an optional `filename`. `concurrency` (default 5, max 10; use 1 on free-tier accounts). `attributes`, `attribute_schema` and `project_id` behave as for `index4ai_ingest` and apply to every item. There is no `file_paths` argument: the hosted server cannot read the caller's disk, so local files go in as `file_base64` (all items together must fit the MCP request body limit) or are hosted and passed as `url`.
+
+The result has `results[]` (`index`, `name`, and either `job_id` or `error`/`code`/`retryable`), `submitted_count`, `failed_count`, `quota_exceeded_count` and `scope`. Items refused with `too_many_jobs` carry `quota_exceed: true` and were not ingested; retry only those once running jobs finish.
 
 ### `index4ai_ingest` / `index4ai_ingest_sync` arguments
 

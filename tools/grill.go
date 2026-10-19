@@ -182,66 +182,27 @@ func grillIngestWithWait(ctx context.Context, req *mcp.CallToolRequest, input Gr
 	}
 	c := grillClient(token)
 
-	var body []byte
-	var st int
-	var err error
-	if input.URL != "" {
-		// URL ingest: the server fetches the remote URL. Mutually exclusive with
-		// the file inputs.
-		if input.FileBase64 != "" {
-			return errResult(), GrillIngestOutput{GrillError: errOut(CodeInvalidInput, "provide only one of url or file_base64")}, nil
-		}
-		slog.Info("index4ai ingest", "url", input.URL)
-		body, st, err = grillIngestURL(c, input.URL, projectID, meta)
-	} else {
-		data, filename, perr := resolveGrillIngestPayload(input)
-		if perr != nil {
-			// Payload build / arg validation failure — bad input, not transport.
-			return errResult(), GrillIngestOutput{GrillError: errOut(CodeInvalidInput, "%s", perr.Error())}, nil
-		}
-		slog.Info("index4ai ingest", "filename", filename, "bytes", len(data))
-		body, st, err = grillIngestData(c, data, filename, projectID, meta)
+	jobID, ge := submitIngest(ctx, c, input, projectID, meta)
+	if ge.Error != "" {
+		return errResult(), GrillIngestOutput{GrillError: ge}, nil
 	}
-	if err != nil {
-		// Network/client error reaching the index4ai API — transient, retryable.
-		return errResult(), GrillIngestOutput{GrillError: GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}}, nil
-	}
-	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4ai ingest"); authErr != "" {
-		return errResult(), GrillIngestOutput{GrillError: errOut(authCode, "%s", authErr)}, nil
-	}
-	if throttle, retryAfter, ok := interpretTooManyJobs(st, body); ok {
-		return errResult(), GrillIngestOutput{GrillError: GrillError{Error: throttle, Code: CodeTooManyJobs, Retryable: isRetryableCode(CodeTooManyJobs, 0), RetryAfterSeconds: retryAfter}}, nil
-	}
-	if conflict, ok := interpretProjectConflict(st, body, "index4ai ingest"); ok {
-		return errResult(), GrillIngestOutput{GrillError: errOut(CodeInvalidInput, "%s", conflict)}, nil
-	}
-	if st != http.StatusCreated {
-		return errResult(), GrillIngestOutput{GrillError: GrillError{Error: fmt.Sprintf("index4ai ingest: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}}, nil
-	}
-
-	j, err := client.ParseJob(body)
-	if err != nil || j.JobID == "" {
-		return errResult(), GrillIngestOutput{GrillError: errOut(CodeParseError, "index4ai ingest: could not parse job_id from response: %s", string(body))}, nil
-	}
-	slog.Info("index4ai ingest job_id", "job_id", j.JobID)
-
 	_, source := projectIDSource(token, input.ProjectID)
 	scope := resolveScope(c, token, projectID, "", source)
 
 	if !waitTerminal {
-		return nil, GrillIngestOutput{JobID: j.JobID, Scope: scope}, nil
+		return nil, GrillIngestOutput{JobID: jobID, Scope: scope}, nil
 	}
 
 	var events []jobStatusFull
 	eventNum := 0
-	streamErr := streamJobStatus(ctx, c, j.JobID, statusAPIBaseURL(), func(s *jobStatusFull) {
+	streamErr := streamJobStatus(ctx, c, jobID, statusAPIBaseURL(), func(s *jobStatusFull) {
 		events = append(events, *s)
-		notifyJobProgress(ctx, req, j.JobID, eventNum, s)
+		notifyJobProgress(ctx, req, jobID, eventNum, s)
 		eventNum++
 	})
 	if streamErr != nil {
-		slog.Error("index4ai ingest status stream failed", "job_id", j.JobID, "err", streamErr)
-		return errResult(), GrillIngestOutput{JobID: j.JobID, Events: events, GrillError: GrillError{Error: fmt.Sprintf("status stream failed: %v", streamErr), Code: CodeStreamError, Retryable: isRetryableCode(CodeStreamError, 0)}}, nil
+		slog.Error("index4ai ingest status stream failed", "job_id", jobID, "err", streamErr)
+		return errResult(), GrillIngestOutput{JobID: jobID, Events: events, GrillError: GrillError{Error: fmt.Sprintf("status stream failed: %v", streamErr), Code: CodeStreamError, Retryable: isRetryableCode(CodeStreamError, 0)}}, nil
 	}
 	if len(events) > 0 {
 		last := events[len(events)-1]
@@ -250,12 +211,60 @@ func grillIngestWithWait(ctx context.Context, req *mcp.CallToolRequest, input Gr
 			if last.Error != "" {
 				msg = "job failed: " + last.Error
 			}
-			slog.Error("index4ai ingest job failed", "job_id", j.JobID)
-			return errResult(), GrillIngestOutput{JobID: j.JobID, Events: events, GrillError: errOut(CodeJobFailed, "%s", msg)}, nil
+			slog.Error("index4ai ingest job failed", "job_id", jobID)
+			return errResult(), GrillIngestOutput{JobID: jobID, Events: events, GrillError: errOut(CodeJobFailed, "%s", msg)}, nil
 		}
 	}
-	slog.Info("index4ai ingest done", "job_id", j.JobID)
-	return nil, GrillIngestOutput{JobID: j.JobID, Events: events, Grill: lastGrillOutcome(events), Scope: scope}, nil
+	slog.Info("index4ai ingest done", "job_id", jobID)
+	return nil, GrillIngestOutput{JobID: jobID, Events: events, Grill: lastGrillOutcome(events), Scope: scope}, nil
+}
+
+// submitIngest uploads one document (url or file_base64) and returns its job_id,
+// or a classified GrillError (Error != "") when nothing was ingested. Shared by
+// index4ai_ingest, index4ai_ingest_sync and index4ai_ingest_batch.
+func submitIngest(ctx context.Context, c *client.Client, input GrillIngestInput, projectID string, meta ingestHeaders) (string, GrillError) {
+	var body []byte
+	var st int
+	var err error
+	if input.URL != "" {
+		// URL ingest: the server fetches the remote URL. Mutually exclusive with
+		// the file inputs.
+		if input.FileBase64 != "" {
+			return "", errOut(CodeInvalidInput, "provide only one of url or file_base64")
+		}
+		slog.Info("index4ai ingest", "url", input.URL)
+		body, st, err = grillIngestURL(c, input.URL, projectID, meta)
+	} else {
+		data, filename, perr := resolveGrillIngestPayload(input)
+		if perr != nil {
+			// Payload build / arg validation failure — bad input, not transport.
+			return "", errOut(CodeInvalidInput, "%s", perr.Error())
+		}
+		slog.Info("index4ai ingest", "filename", filename, "bytes", len(data))
+		body, st, err = grillIngestData(c, data, filename, projectID, meta)
+	}
+	if err != nil {
+		// Network/client error reaching the index4ai API — transient, retryable.
+		return "", GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}
+	}
+	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4ai ingest"); authErr != "" {
+		return "", errOut(authCode, "%s", authErr)
+	}
+	if throttle, retryAfter, ok := interpretTooManyJobs(st, body); ok {
+		return "", GrillError{Error: throttle, Code: CodeTooManyJobs, Retryable: isRetryableCode(CodeTooManyJobs, 0), RetryAfterSeconds: retryAfter}
+	}
+	if conflict, ok := interpretProjectConflict(st, body, "index4ai ingest"); ok {
+		return "", errOut(CodeInvalidInput, "%s", conflict)
+	}
+	if st != http.StatusCreated {
+		return "", GrillError{Error: fmt.Sprintf("index4ai ingest: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}
+	}
+	j, err := client.ParseJob(body)
+	if err != nil || j.JobID == "" {
+		return "", errOut(CodeParseError, "index4ai ingest: could not parse job_id from response: %s", string(body))
+	}
+	slog.Info("index4ai ingest job_id", "job_id", j.JobID)
+	return j.JobID, GrillError{}
 }
 
 // -- Grill Ingest Resume ---------------------------------------------

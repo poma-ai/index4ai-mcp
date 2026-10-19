@@ -21,7 +21,7 @@ index4ai turns a document into semantically chunked, searchable context. Ingest 
 |---|---|
 | One file, you want the result before continuing | `index4ai_ingest_sync` |
 | One file, fire-and-forget (poll later) | `index4ai_ingest` |
-| Several files | `index4ai_ingest` once per file, then `index4ai_jobs_status` |
+| Several files (up to 50) | `index4ai_ingest_batch` with one item per file, then `index4ai_jobs_status` |
 | You already have a `job_id` and just need to wait | `index4ai_ingest_resume` |
 | Checking up to 50 jobs at once | `index4ai_jobs_status` |
 
