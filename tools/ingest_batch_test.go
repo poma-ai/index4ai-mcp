@@ -157,6 +157,8 @@ func TestIngestBatchValidationErrorsSurviveTransport(t *testing.T) {
 	for name, args := range map[string]map[string]any{
 		"no token":    {"items": []any{map[string]any{"url": "u"}}},
 		"empty items": {"token": "t", "items": []any{}},
+		"too many":    {"token": "t", "items": make([]any, ingestBatchMaxItems+1)},
+		"bad attrs":   {"token": "t", "items": []any{map[string]any{"url": "u"}}, "attributes": map[string]any{"Bad Name": "x"}},
 	} {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "index4ai_ingest_batch", Arguments: args})
 		if err != nil {
@@ -168,15 +170,15 @@ func TestIngestBatchValidationErrorsSurviveTransport(t *testing.T) {
 	}
 }
 
-// A legacy quota 403 (not an auth failure) is retryable backpressure, so the
-// item is bucketed quota_exceed rather than a terminal failure.
-func TestIngestBatchLegacyQuota403(t *testing.T) {
+// A legacy 403 quota_exceeded means exhausted credits, not job capacity: it must
+// stay a terminal failure, never a retryable quota_exceed item.
+func TestIngestBatchLegacyQuota403IsNotRetryable(t *testing.T) {
 	batchStub(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`{"reason":"quota_exceeded"}`))
 	})
 	_, out, _ := IngestBatch(context.Background(), nil, IngestBatchInput{Token: "tok", Items: []IngestBatchItem{{URL: "https://example.com/a.pdf"}}})
-	if out.QuotaExceededCount != 1 || !out.Results[0].QuotaExceed || !out.Results[0].Retryable {
+	if r := out.Results[0]; out.FailedCount != 1 || r.QuotaExceed || r.Retryable {
 		t.Fatalf("out = %+v", out)
 	}
 }

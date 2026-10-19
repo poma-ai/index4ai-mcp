@@ -256,10 +256,6 @@ func submitIngest(ctx context.Context, c *client.Client, input GrillIngestInput,
 	if conflict, ok := interpretProjectConflict(st, body, "index4ai ingest"); ok {
 		return "", errOut(CodeInvalidInput, "%s", conflict)
 	}
-	if st == http.StatusForbidden {
-		// interpretAuthError returned "": a legacy quota/capacity 403, not auth.
-		return "", GrillError{Error: fmt.Sprintf("quota exceeded: %s", string(body)), Code: CodeTooManyJobs, Retryable: isRetryableCode(CodeTooManyJobs, 0)}
-	}
 	if st != http.StatusCreated {
 		return "", GrillError{Error: fmt.Sprintf("index4ai ingest: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}
 	}
