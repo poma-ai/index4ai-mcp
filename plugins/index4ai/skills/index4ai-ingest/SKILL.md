@@ -21,7 +21,7 @@ index4ai turns a document into semantically chunked, searchable context. Ingest 
 |---|---|
 | One file, you want the result before continuing | `index4ai_ingest_sync` |
 | One file, fire-and-forget (poll later) | `index4ai_ingest` |
-| Several files | `index4ai_ingest` once per file, then `index4ai_jobs_status` |
+| Several files (up to 50) | `index4ai_ingest_batch` with one item per file, then `index4ai_jobs_status` |
 | You already have a `job_id` and just need to wait | `index4ai_ingest_resume` |
 | Checking up to 50 jobs at once | `index4ai_jobs_status` |
 
@@ -104,8 +104,13 @@ which one is the default.
 A response with `code: "too_many_jobs"` and `retryable: true` means the account is at its
 concurrent-job ceiling and **the document was not ingested**. Wait
 `retry_after_seconds`, then retry the identical call. Do not retry in a tight loop, and
-pause any further ingests until capacity frees up. When ingesting several files, submit
+pause any further ingests until capacity frees up. When ingesting several files with `index4ai_ingest`, submit
 them one at a time and check `index4ai_jobs_status` before sending more.
+
+`index4ai_ingest_batch` takes up to 50 `items` (each `url` or `file_base64`) and returns one
+`job_id` or error per item in `results`. Items refused with `too_many_jobs` carry
+`quota_exceed: true` and were not ingested: wait for running jobs, then resubmit only those.
+Set `concurrency` to 1 on free-tier accounts.
 
 ## Errors
 

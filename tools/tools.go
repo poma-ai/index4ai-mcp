@@ -9,6 +9,7 @@ func Register(server *mcp.Server) {
 	mcp.AddTool(server, grillExplainTool, GrillExplain)
 	mcp.AddTool(server, grillIngestTool, GrillIngest)
 	mcp.AddTool(server, grillIngestSyncTool, GrillIngestSync)
+	mcp.AddTool(server, ingestBatchTool, IngestBatch)
 	mcp.AddTool(server, grillIngestResumeTool, GrillIngestResume)
 	mcp.AddTool(server, grillJobsStatusTool, GrillJobsStatus)
 	mcp.AddTool(server, grillSearchTool, GrillSearch)

@@ -76,6 +76,7 @@ documents by `url` and small ones by `file_base64`; large local files go through
 | `index4ai_explain` | How index4ai works, and how to get an API key. No auth. |
 | `index4ai_ingest` | Start an ingest, return `job_id` immediately. |
 | `index4ai_ingest_sync` | Ingest and wait for a terminal state. |
+| `index4ai_ingest_batch` | Ingest up to 50 documents in one call; one `job_id` or error per item. |
 | `index4ai_ingest_resume` | Reattach to a running job's status stream. |
 | `index4ai_jobs_status` | Status snapshots for up to 50 jobs. |
 | `index4ai_search` | Hybrid search returning concatenated RAG context. |
@@ -85,7 +86,7 @@ documents by `url` and small ones by `file_base64`; large local files go through
 
 ## Versioning
 
-`plugin.json` tracks the tool surface it documents (currently `0.1.0`). When the tools in
+`plugin.json` tracks the tool surface it documents (currently `0.2.0`). When the tools in
 `tools/` change, update the skills and bump `version` here, in
 `.claude-plugin/plugin.json`, and in `/.claude-plugin/marketplace.json`.
 
