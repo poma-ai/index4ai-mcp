@@ -6,7 +6,7 @@ The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev
 
 ## Connect your agent
 
-Auth is OAuth 2.0. On first connect the client gets a `401` with a `WWW-Authenticate` challenge and walks you through a browser login. MCP SDKs handle Dynamic Client Registration, authorize, token exchange and refresh automatically.
+Auth is OAuth 2.0. On first connect the client gets a `401` with a `WWW-Authenticate` challenge and walks you through a browser login. MCP SDKs handle Dynamic Client Registration, authorize, token exchange and refresh automatically..
 
 **Claude Code / Claude Desktop**
 ```json
