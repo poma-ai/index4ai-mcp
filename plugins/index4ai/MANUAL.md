@@ -1,9 +1,9 @@
 # Install guide
 
-This plugin ships three things:
+This plugin ships two kinds of thing:
 
-- **`skills/index4ai-ingest`** and **`skills/index4ai-search`** — instructions the agent loads when a task matches.
-- **One MCP server** — the hosted index4ai endpoint at `https://mcp.index4.ai`, which provides the `index4ai_*` tools.
+- **`skills/index4ai-add-documents`**, **`skills/index4ai-search-project`** and **`skills/index4ai-search-document`**: instructions the agent loads when a task matches.
+- **One MCP server**: the hosted index4.ai endpoint at `https://mcp.index4.ai`, which provides the `index4ai_*` tools.
 
 Skills are portable across clients. The MCP server has to be declared in each client's
 own config format, so the same server appears three times below with different syntax.
@@ -71,7 +71,7 @@ change the endpoint.
 ## Claude Code
 
 Three routes: `npx plugins add` (above), a one-session flag, or a copy into your skills
-directory. All three end up with the same two skills and one MCP server.
+directory. All three end up with the same three skills and one MCP server.
 
 ### Try it for one session
 
@@ -79,7 +79,8 @@ directory. All three end up with the same two skills and one MCP server.
 claude --plugin-dir "$INDEX4AI_PLUGIN"
 ```
 
-The skills become `/index4ai:index4ai-ingest` and `/index4ai:index4ai-search`; the server
+The skills become `/index4ai:index4ai-add-documents`, `/index4ai:index4ai-search-project`
+and `/index4ai:index4ai-search-document`; the server
 registers as `plugin:index4ai:index4ai`. Run `/reload-plugins` after editing a file.
 
 ### Install it permanently
@@ -108,7 +109,7 @@ Remove it with `rm -rf ~/.claude/skills/index4ai`.
 claude plugin validate "$INDEX4AI_PLUGIN"
 ```
 
-Then, in a session, `/help` lists the two skills under the `index4ai` namespace and
+Then, in a session, `/help` lists the three skills under the `index4ai` namespace and
 `/mcp` shows `index4ai` as connected.
 
 ### Distribute to a team
@@ -119,6 +120,16 @@ The repo root carries a `.claude-plugin/marketplace.json` naming the marketplace
 ```bash
 claude plugin marketplace add poma-ai/index4ai-mcp && claude plugin install index4ai@index4ai
 ```
+
+On Claude Code 2.1.292 or later, `claude plugin install index4ai --marketplace poma-ai/index4ai-mcp`
+does both in one command (`/plugin install index4ai --marketplace poma-ai/index4ai-mcp`
+inside a session, 2.1.275 or later).
+
+Upgrading from 0.2.x: the skills were renamed (`index4ai-ingest` is now
+`index4ai-add-documents`, `index4ai-search` is now `index4ai-search-project`). A
+marketplace install picks that up with `claude plugin update index4ai@index4ai`. Symlinks
+made for Cursor or Codex under the old names dangle after a `git pull`: remove them and
+rerun the link command for that client.
 
 Add `--scope project` to the marketplace command to declare it for a repo rather than for
 your user. Undo with `claude plugin marketplace remove index4ai`, which takes the installed
@@ -149,12 +160,12 @@ Add headers to `.mcp.json`:
 
 Cursor reads skills from `.cursor/skills/` (project) or `~/.cursor/skills/` (global), and
 MCP servers from `.cursor/mcp.json` or `~/.cursor/mcp.json`. It does not read a plugin
-directory, so point it at the two pieces separately.
+directory, so point it at the skills and the server separately.
 
 ### Skills
 
 ```bash
-mkdir -p ~/.cursor/skills && ln -s "$INDEX4AI_PLUGIN/skills/index4ai-ingest" ~/.cursor/skills/index4ai-ingest && ln -s "$INDEX4AI_PLUGIN/skills/index4ai-search" ~/.cursor/skills/index4ai-search
+mkdir -p ~/.cursor/skills && for s in index4ai-add-documents index4ai-search-project index4ai-search-document; do ln -s "$INDEX4AI_PLUGIN/skills/$s" ~/.cursor/skills/$s; done
 ```
 
 Use `.cursor/skills/` inside a repo instead when the skills should only apply to that
@@ -200,10 +211,10 @@ searched at the repo root), and MCP servers from `~/.codex/config.toml`.
 ### Skills
 
 ```bash
-mkdir -p ~/.codex/skills && ln -s "$INDEX4AI_PLUGIN/skills/index4ai-ingest" ~/.codex/skills/index4ai-ingest && ln -s "$INDEX4AI_PLUGIN/skills/index4ai-search" ~/.codex/skills/index4ai-search
+mkdir -p ~/.codex/skills && for s in index4ai-add-documents index4ai-search-project index4ai-search-document; do ln -s "$INDEX4AI_PLUGIN/skills/$s" ~/.codex/skills/$s; done
 ```
 
-Invoke one explicitly with `$index4ai-ingest`, or let Codex match it against the skill's
+Invoke one explicitly with `$index4ai-add-documents`, or let Codex match it against the skill's
 `description`.
 
 ### MCP server
@@ -231,5 +242,5 @@ Verify with `codex mcp list`.
 | Nothing loads in Claude Code | Wrong directory passed to `--plugin-dir`. It must be `plugins/index4ai`, the directory holding `skills/`. |
 | Installed via `npx plugins add`, skills work, no tools | The plugin's `.mcp.json` is missing. The CLI does not generate one for Claude Code. |
 | Server silently absent in Claude Code | `.mcp.json` is missing, or its server uses `"type": "streamable-http"`. Claude Code needs `"type": "http"`. |
-| `401` on every call | The API key is rejected or expired. Generate a new one in the index4ai console (`console.index4.ai`). |
+| `401` on every call | The API key is rejected or expired. Generate a new one in the index4.ai console (`console.index4.ai`). |
 | Search returns nothing for a document you ingested | Ingest and search resolved to different projects. Check with `index4ai_projects`, then pass `project_id`. |

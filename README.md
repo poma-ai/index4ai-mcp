@@ -1,8 +1,8 @@
-# index4ai MCP
+# index4.ai MCP
 
-A hosted [Model Context Protocol](https://modelcontextprotocol.io) server for the [index4ai](https://index4.ai) context engine. Ingest documents and run semantic search from any MCP client (Claude Code, Claude Desktop, Cursor, or your own agent).
+A hosted [Model Context Protocol](https://modelcontextprotocol.io) server for the [index4.ai](https://index4.ai) context engine. Ingest documents and run semantic search from any MCP client (Claude Code, Claude Desktop, Cursor, or your own agent).
 
-The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). The hosts serve once the `index4ai-mcp` ArgoCD apps are enabled in poma-deploy (`clusters/gke-poma-nl/argocd/kustomization.yaml`). It talks to the index4ai API at `https://api.index4.ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
+The server is meant to run at **`https://mcp.index4.ai`** (dev: `https://mcp-dev.index4.ai`). The hosts serve once the `index4ai-mcp` ArgoCD apps are enabled in poma-deploy (`clusters/gke-poma-nl/argocd/kustomization.yaml`). It talks to the index4.ai API at `https://api.index4.ai/v1` (spec: `poma-services-go/docs/api/index4ai/v1/openapi.yaml`). There is no local or stdio mode.
 
 ## Connect your agent
 
@@ -31,11 +31,11 @@ Auth is OAuth 2.0. On first connect the client gets a `401` with a `WWW-Authenti
 }
 ```
 
-To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key" }` (or `"Authorization": "Bearer your-api-key"`). Keys are created in the index4ai console (`console.index4.ai`, dev `console-dev.index4.ai`; the prod console is not live yet).
+To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key" }` (or `"Authorization": "Bearer your-api-key"`). Keys are created in the index4.ai console (`console.index4.ai`, dev `console-dev.index4.ai`; the prod console is not live yet).
 
 ## Agent plugin
 
-`plugins/index4ai/` packages the MCP declaration with two skills (`index4ai-ingest`, `index4ai-search`). Claude Code: `claude plugin marketplace add poma-ai/index4ai-mcp && claude plugin install index4ai@index4ai`. Other clients: `npx plugins add https://github.com/poma-ai/index4ai-mcp`, or see `plugins/index4ai/MANUAL.md`.
+`plugins/index4ai/` packages the MCP declaration with three skills (`index4ai-add-documents`, `index4ai-search-project`, `index4ai-search-document`). Claude Code: `claude plugin install index4ai --marketplace poma-ai/index4ai-mcp` (2.1.292 or later), or `claude plugin marketplace add poma-ai/index4ai-mcp && claude plugin install index4ai@index4ai`. Other clients: `npx plugins add https://github.com/poma-ai/index4ai-mcp`, or see `plugins/index4ai/MANUAL.md`.
 
 ## Typical workflow
 
@@ -46,7 +46,7 @@ To use an API key instead of OAuth, add `"headers": { "x-api-key": "your-api-key
 
 | Tool | What it does |
 |------|-------------|
-| `index4ai_explain` | Explanation of how index4ai works: ingest flow, search, result format, API key setup. No arguments or auth. |
+| `index4ai_explain` | Explanation of how index4.ai works: ingest flow, search, result format, API key setup. No arguments or auth. |
 | `index4ai_ingest` | Starts ingest and returns `job_id` after upload. Does not wait for indexing. |
 | `index4ai_ingest_sync` | Ingest and wait until the job reaches a terminal state. Returns `job_id` and status `events`. |
 | `index4ai_ingest_batch` | Ingest up to 50 documents (`url` or `file_base64` each) with bounded upload concurrency. Returns one `job_id` or error per item, in input order. Does not wait for indexing. |
@@ -72,11 +72,11 @@ Provide exactly one of `file_base64` or `url`.
 | Argument | Type | Description |
 |----------|------|-------------|
 | `file_base64` | string | Standard base64 of the file bytes. Bounded by the MCP request body limit (~12 MiB of file by default). |
-| `url` | string | Remote URL the index4ai API fetches and ingests. The MCP does not download it. Use for large files. |
+| `url` | string | Remote URL the index4.ai API fetches and ingests. The MCP does not download it. Use for large files. |
 | `filename` | string | Original basename (e.g. `report.pdf`). Inferred from content when omitted. |
 | `attributes` | object | Typed document attributes, `{name: value}`. Values are strings, numbers, booleans, or non-empty arrays of one kind. Names match `^[a-z0-9_]{1,64}$`, are permanent per project and count against `max_names`. Sent as `X-Attributes`, capped at 64 names and 2048 characters. |
 | `attribute_schema` | object | Type declarations `{name: {"type": "<type>"}}` for names in `attributes`, only where the value cannot say the type (`encrypted_text` always, `datetime` for a new name, the array type of an empty array). |
-| `labels` | object | Legacy, being retired in favour of `attributes`. Sent as the `labels` attribute: each `{key: value}` pair becomes a `"key:value"` string in `attributes.labels` (sorted by key, after any `labels` you pass in `attributes`, duplicates dropped); no `X-Labels` header. index4ai types `labels` as `[]encrypted_text` (matched by token) unless the project already owns `labels` with another type, which then governs (an incompatible one fails at index4ai). Labels share the attribute limits: 64 elements, 64 names, 2048 characters of `X-Attributes`. Avoid `:` in keys. |
+| `labels` | object | Legacy, being retired in favour of `attributes`. Sent as the `labels` attribute: each `{key: value}` pair becomes a `"key:value"` string in `attributes.labels` (sorted by key, after any `labels` you pass in `attributes`, duplicates dropped); no `X-Labels` header. index4.ai types `labels` as `[]encrypted_text` (matched by token) unless the project already owns `labels` with another type, which then governs (an incompatible one fails at index4.ai). Labels share the attribute limits: 64 elements, 64 names, 2048 characters of `X-Attributes`. Avoid `:` in keys. |
 
 ### `index4ai_search` arguments
 
@@ -122,9 +122,9 @@ The image is built and pushed to `ghcr.io/poma-ai/index4ai-mcp:<short-sha>` on e
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `POMA_API_BASE_URL` | `https://api.index4.ai` | index4ai API host. Only the origin is used; calls go to `<origin>/v1` on an index4.ai host, `<origin>/index4ai/v1` on any other. Dev: `https://api-dev.index4.ai`. |
+| `POMA_API_BASE_URL` | `https://api.index4.ai` | index4.ai API host. Only the origin is used; calls go to `<origin>/v1` on an index4.ai host, `<origin>/index4ai/v1` on any other. Dev: `https://api-dev.index4.ai`. |
 | `POMA_STATUS_API_BASE_URL` | API host + `/status/v1` | Job-status SSE service. |
-| `POMA_AUTH_SERVER_URL` | derived | OAuth authorization server advertised in the protected-resource metadata. Must be the issuer the api reports, which is the poma-ai.com host of the same environment even on the index4ai hosts. Unset, it is derived from `POMA_API_BASE_URL` (`api-dev.index4.ai` → `https://api-dev.poma-ai.com`), falling back to `https://api.poma-ai.com`. |
+| `POMA_AUTH_SERVER_URL` | derived | OAuth authorization server advertised in the protected-resource metadata. Must be the issuer the api reports, which is the poma-ai.com host of the same environment even on the index4.ai hosts. Unset, it is derived from `POMA_API_BASE_URL` (`api-dev.index4.ai` → `https://api-dev.poma-ai.com`), falling back to `https://api.poma-ai.com`. |
 | `POMA_API_JWT_SECRET` | unset | Enables local verification of OAuth bearer JWTs (HMAC-SHA256, `aud`, `exp`, `typ`). Must match the api. Requires `POMA_MCP_RESOURCE`. |
 | `POMA_MCP_RESOURCE` | unset | The MCP's public URI, checked against the token `aud`. |
 | `POMA_MCP_PUBLIC_URL` | `http://localhost:<port>` | Public base URL used in the metadata and the `WWW-Authenticate` challenge. Required behind the gateway: forwarded headers are not trusted. |

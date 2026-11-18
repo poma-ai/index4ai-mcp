@@ -3,7 +3,7 @@ FROM cgr.dev/chainguard/go:latest-dev AS builder
 
 LABEL org.opencontainers.image.authors="r@nice.pink"
 LABEL org.opencontainers.image.source="https://github.com/poma-ai/index4ai-mcp"
-LABEL org.opencontainers.image.description="index4ai MCP"
+LABEL org.opencontainers.image.description="index4.ai MCP"
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ FROM cgr.dev/chainguard/static:latest AS runner
 
 LABEL org.opencontainers.image.authors="r@nice.pink"
 LABEL org.opencontainers.image.source="https://github.com/poma-ai/index4ai-mcp"
-LABEL org.opencontainers.image.description="index4ai MCP"
+LABEL org.opencontainers.image.description="index4.ai MCP"
 
 # static includes CA certs for HTTPS (api.index4.ai)
 USER nonroot:nonroot

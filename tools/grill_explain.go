@@ -9,12 +9,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// -- index4ai Explain ------------------------------------------------------
+// -- index4.ai Explain ------------------------------------------------------
 
 // grillExplanation's {{CONSOLE_URL}} is replaced with consoleURL() when served.
-const grillExplanation = `# index4ai
+const grillExplanation = `# index4.ai
 
-index4ai is a managed context engine. Ingest any document, then search it with natural language.
+index4.ai is a managed context engine. Ingest any document, then search it with natural language.
 
 ## Quick Start
 
@@ -31,14 +31,14 @@ index4ai is a managed context engine. Ingest any document, then search it with n
 
 ## Ingesting Data
 
-index4ai accepts files in any format — PDF, DOCX, TXT, HTML, CSV, Markdown, Json, images, and more. The server handles parsing, chunking, and embedding automatically.
+index4.ai accepts files in any format: PDF, DOCX, TXT, HTML, CSV, Markdown, Json, images, and more. The server handles parsing, chunking, and embedding automatically.
 
 **How to ingest:**
 - Use ` + "`index4ai_ingest`" + ` with either ` + "`file_base64`" + ` (small files) or ` + "`url`" + ` (the server fetches it; use for large files) — returns immediately with a ` + "`job_id`" + `
 - Use ` + "`index4ai_ingest_sync`" + ` with the same arguments — waits until processing completes
 
 **What happens server-side:**
-1. File is uploaded to the index4ai API
+1. File is uploaded to the index4.ai API
 2. A job is created — you receive a ` + "`job_id`" + `
 3. The file is parsed, chunked, and embedded
 4. Once status reaches "done", the document is searchable
@@ -87,18 +87,18 @@ var grillExplainInputSchema = &jsonschema.Schema{
 var grillExplainOutputSchema = &jsonschema.Schema{
 	Type: "object",
 	Properties: map[string]*jsonschema.Schema{
-		"explanation": {Type: "string", Description: "Markdown-formatted explanation of index4ai."},
+		"explanation": {Type: "string", Description: "Markdown-formatted explanation of index4.ai."},
 	},
 }
 
 var grillExplainTool = &mcp.Tool{
 	Name: "index4ai_explain",
 	Annotations: &mcp.ToolAnnotations{
-		Title:         "Explain index4ai",
+		Title:         "Explain index4.ai",
 		ReadOnlyHint:  true,
 		OpenWorldHint: boolPtr(false),
 	},
-	Description:  "Returns a structured explanation of how index4ai works: ingesting data, searching, result format, and how to get an API key. No arguments or authentication required.",
+	Description:  "Returns a structured explanation of how index4.ai works: ingesting data, searching, result format, and how to get an API key. No arguments or authentication required.",
 	InputSchema:  grillExplainInputSchema,
 	OutputSchema: grillExplainOutputSchema,
 }

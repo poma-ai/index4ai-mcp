@@ -21,7 +21,7 @@ var grillAttributesInputSchema = &jsonschema.Schema{
 	Properties: map[string]*jsonschema.Schema{
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 		"project_id": projectIDSchema,
 	},
@@ -99,17 +99,17 @@ func GrillAttributes(ctx context.Context, _ *mcp.CallToolRequest, input GrillAtt
 	c := grillClient(token)
 	body, st, err := grillListAttributes(c, projectID)
 	if err != nil {
-		ge := GrillError{Error: "index4ai attributes: " + err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}
+		ge := GrillError{Error: "index4.ai attributes: " + err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}
 		return errResult(), attributesError(ge), nil
 	}
-	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4ai attributes"); authErr != "" {
+	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4.ai attributes"); authErr != "" {
 		return errResult(), attributesError(errOut(authCode, "%s", authErr)), nil
 	}
-	if conflict, ok := interpretProjectConflict(st, body, "index4ai attributes"); ok {
+	if conflict, ok := interpretProjectConflict(st, body, "index4.ai attributes"); ok {
 		return errResult(), attributesError(errOut(CodeInvalidInput, "%s", conflict)), nil
 	}
 	if st != http.StatusOK {
-		msg := fmt.Sprintf("index4ai attributes: HTTP %d: %s", st, string(body))
+		msg := fmt.Sprintf("index4.ai attributes: HTTP %d: %s", st, string(body))
 		if st == http.StatusServiceUnavailable {
 			msg += " (the project's attribute schema could not be read right now; retry later, and do not declare new attribute names until it can be read)"
 		}
@@ -123,7 +123,7 @@ func GrillAttributes(ctx context.Context, _ *mcp.CallToolRequest, input GrillAtt
 		Note       string           `json:"note"`
 	}
 	if err := json.Unmarshal(body, &wire); err != nil {
-		return errResult(), attributesError(errOut(CodeParseError, "index4ai attributes: parse response: %v", err)), nil
+		return errResult(), attributesError(errOut(CodeParseError, "index4.ai attributes: parse response: %v", err)), nil
 	}
 
 	out := GrillAttributesOutput{

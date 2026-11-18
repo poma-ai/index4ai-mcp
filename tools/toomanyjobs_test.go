@@ -184,7 +184,7 @@ func TestInterpretAuthError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg, code := interpretAuthError(context.Background(), "tok", tt.statusCode, []byte(tt.body), "index4ai ingest")
+			msg, code := interpretAuthError(context.Background(), "tok", tt.statusCode, []byte(tt.body), "index4.ai ingest")
 			if tt.wantEmpty {
 				if msg != "" {
 					t.Fatalf("expected empty msg, got %q", msg)

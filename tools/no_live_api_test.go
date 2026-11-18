@@ -13,7 +13,7 @@ import (
 	"github.com/poma-ai/poma-cli/pkg/client"
 )
 
-// No test in this package may reach a live index4ai API. The package reads its
+// No test in this package may reach a live index4.ai API. The package reads its
 // hosts from POMA_API_BASE_URL and POMA_STATUS_API_BASE_URL (common.go) and its
 // token only from the call or the request context — there is deliberately no
 // env-var key fallback here. TestMain still clears the key and project

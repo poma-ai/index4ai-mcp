@@ -72,7 +72,7 @@ func TestScopeFromProjectsProjectKey(t *testing.T) {
 
 func TestInterpretProjectConflict(t *testing.T) {
 	body := []byte(`{"code":409,"reason":"project_id_conflict","error":"X-Project-ID does not match the project this API key is bound to"}`)
-	msg, ok := interpretProjectConflict(http.StatusConflict, body, "index4ai ingest")
+	msg, ok := interpretProjectConflict(http.StatusConflict, body, "index4.ai ingest")
 	if !ok || !strings.Contains(msg, "HTTP 409") || !strings.Contains(msg, "project_id argument") {
 		t.Fatalf("conflict not recognised: ok=%v msg=%q", ok, msg)
 	}

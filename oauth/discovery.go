@@ -43,7 +43,7 @@ func publicBaseURL() string {
 
 // authServerURL returns the authorization server's base URL (no trailing slash).
 //
-// The api answers OAuth discovery on the index4ai hosts too, but the document names the
+// The api answers OAuth discovery on the index4.ai hosts too, but the document names the
 // poma-ai.com host of the same environment as issuer (api.index4.ai -> api.poma-ai.com,
 // api-dev.index4.ai -> api-dev.poma-ai.com), and RFC 8414 clients reject metadata whose
 // issuer differs from the URL they fetched. So the MCP must advertise the poma-ai.com host.

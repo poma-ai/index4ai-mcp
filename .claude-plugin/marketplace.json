@@ -5,18 +5,14 @@
     "email": "support@poma-ai.com",
     "url": "https://poma-ai.com"
   },
-  "description": "Agent plugins for the index4ai context engine.",
+  "description": "Agent plugins for the index4.ai context engine.",
   "version": "1.0.0",
-  "metadata": {
-    "pluginRoot": "./plugins"
-  },
   "plugins": [
     {
       "name": "index4ai",
-      "displayName": "index4ai",
+      "displayName": "index4.ai",
       "source": "./plugins/index4ai",
-      "description": "index4ai — ingest documents into the index4ai context engine and run semantic search over them from any agent.",
-      "version": "0.2.0",
+      "description": "index4.ai: ingest documents into the index4.ai context engine and run semantic search over them from any agent.",
       "author": {
         "name": "POMA AI",
         "email": "support@poma-ai.com",

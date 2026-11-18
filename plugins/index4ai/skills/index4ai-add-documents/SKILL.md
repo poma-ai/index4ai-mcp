@@ -1,19 +1,23 @@
 ---
-name: index4ai-ingest
-description: Ingest documents (PDF, DOCX, PPTX, XLSX, HTML, Markdown, plain text, images) into the index4ai context engine so they become semantically searchable. Use when the user says "index my <file>", or asks to ingest, index, upload, or add a document to index4ai, or wants a PDF/report/contract made searchable. Also covers job status polling and resuming an in-progress ingest.
+name: index4ai-add-documents
+description: Add documents (PDF, DOCX, PPTX, XLSX, HTML, Markdown, plain text, images) to the index4.ai context engine so they become semantically searchable. Use when the user says "index my file", or asks to add, upload, index, or ingest one or more documents or URLs into index4.ai, or wants a PDF/report/contract made searchable. Also covers batch ingest, typed attributes, job status polling, and resuming an in-progress ingest.
 license: MPL-2.0
-compatibility: Requires the index4ai MCP server from this plugin and an index4ai account (OAuth, or an API key from the index4ai console).
+compatibility: Requires the index4.ai MCP server from this plugin and an index4.ai account (OAuth, or an API key from the index4.ai console).
 metadata:
   author: poma-ai
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
-# Ingest into index4ai
+# Add documents to index4.ai
 
-index4ai turns a document into semantically chunked, searchable context. Ingest returns a
+index4.ai turns a document into semantically chunked, searchable context. Ingest returns a
 `job_id`; once the job reaches a terminal state that same id is the `doc_id` you pass to
-`index4ai_search` as `doc_filter` — except when the result carries a `grill` object, where
+`index4ai_search` as `doc_filter`, except when the result carries a `grill` object, where
 `grill.doc_id` is the document to filter on. See [Re-ingesting a file](#re-ingesting-a-file).
+
+Searching afterwards is covered by the sibling skills: `index4ai-search-document` for
+questions about one document (including the one just added), `index4ai-search-project`
+for questions across everything in the project.
 
 ## Pick the right tool
 
@@ -33,7 +37,7 @@ so you can tell the user the document is actually searchable rather than merely 
 The server is hosted, so it cannot read paths on the user's machine. Provide **exactly
 one** of `file_base64` or `url`.
 
-- **`url`** — a remote document the index4ai API fetches itself. The MCP server does not
+- **`url`**: a remote document the index4.ai API fetches itself. The MCP server does not
   download it. Prefer this for anything large or already online.
 - **`file_base64`** — the file bytes, standard base64. Small files only: the MCP request
   body is capped (about 12 MiB of file by default), and base64 inflates memory on both ends.
@@ -45,14 +49,14 @@ typed `attributes` / `attribute_schema` (next section), and `labels`.
 `labels` is **legacy and being retired in favour of attributes** — prefer `attributes` for
 new work. It still works: a flat `{key: value}` map, sent as the `labels` attribute
 (`"key:value"` strings in `attributes.labels`, after any you pass there; no `X-Labels`
-header). index4ai types it `[]encrypted_text`, matched by token, unless the project already
+header). index4.ai types it `[]encrypted_text`, matched by token, unless the project already
 owns `labels` with another type, which then governs. Labels count against the attribute
 limits (64 elements, 64 names, 2048 characters). Avoid `:` in label keys.
 
 ## Typed attributes: call `index4ai_attributes` first
 
-`index4ai_ingest` and `index4ai_ingest_sync` take typed document attributes, which
-`index4ai_search` can later filter on with `attribute_filters`:
+`index4ai_ingest`, `index4ai_ingest_sync` and `index4ai_ingest_batch` take typed document
+attributes, which `index4ai_search` can later filter on with `attribute_filters`:
 
 - `attributes` — `{name: value}`, where a value is a string, number, boolean, or an array
   of those. `null` is refused. E.g. `{"region": "emea", "year": 2024}`.
@@ -120,7 +124,7 @@ Full table: [references/errors.md](references/errors.md).
 
 ## Re-ingesting a file
 
-Re-ingesting is safe and the job succeeds either way, but what index4ai did with it depends
+Re-ingesting is safe and the job succeeds either way, but what index4.ai did with it depends
 on whether anything changed. When the gateway reports the outcome, `index4ai_ingest_sync`,
 `index4ai_ingest_resume` and each `index4ai_jobs_status` result carry a `grill` object (the
 API's field name): `{"deduplicated": bool, "doc_id": string, "replaced_doc_ids": [string]}`.
@@ -145,7 +149,8 @@ User: "index https://example.com/contract.pdf and find the indemnification claus
 1. `index4ai_ingest_sync` with `url: "https://example.com/contract.pdf"`.
 2. Read `job_id`, `grill` and `scope` from the result; tell the user the project name.
 3. `index4ai_search` with `query: "indemnification clause"`, and `doc_filter` set to
-   `grill.doc_id` when the result carried a `grill` object, otherwise to `job_id`.
+   `grill.doc_id` when the result carried a `grill` object, otherwise to `job_id`. The
+   `index4ai-search-document` skill covers this step in full.
 
 ## Very large files
 
@@ -154,7 +159,7 @@ A large local file the agent cannot hand over as a URL can bypass the MCP messag
 - `POST https://mcp.index4.ai/ingest-upload` with the raw bytes (`?filename=report.pdf`) or
   a multipart field `file`, authenticated with the same `x-api-key` / `Authorization:
   Bearer` header. It returns `{"job_id": "…"}`.
-- Or `POST` the bytes to the index4ai API itself, `https://api.index4.ai/v1/ingest`,
+- Or `POST` the bytes to the index4.ai API itself, `https://api.index4.ai/v1/ingest`,
   with `Content-Type: application/octet-stream` and
   `Content-Disposition: attachment; filename="…"`.
 

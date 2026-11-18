@@ -74,13 +74,13 @@ var grillIngestInputSchema = &jsonschema.Schema{
 		"attribute_schema": ingestAttributeSchemaSchema(),
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 		"project_id": projectIDSchema,
 	},
 }
 
-const ingestURLDescription = "Remote URL for the index4ai server to fetch and ingest. Mutually exclusive with file_base64. The MCP does not download it — the server fetches the URL. Preferred for large files."
+const ingestURLDescription = "Remote URL for the index4.ai server to fetch and ingest. Mutually exclusive with file_base64. The MCP does not download it: the server fetches the URL. Preferred for large files."
 
 // grillOutcomeSchema describes the optional `grill` object the gateway attaches
 // to a job status (poma-services-go#133). Omitted when the gateway did not send it.
@@ -119,7 +119,7 @@ var grillIngestTool = &mcp.Tool{
 		DestructiveHint: boolPtr(false),
 		OpenWorldHint:   boolPtr(true),
 	},
-	Description:  "Ingest a file into index4ai (context engine). Provide exactly one of file_base64 (small files) or url (the server fetches it; use for large files). Returns job_id. Once done, doc_id equals job_id for index4ai_search — except when index4ai_jobs_status reports a `grill` object for the job, in which case grill.doc_id is the document to filter on (it differs from job_id on a dedup hit). The response includes a `scope` object identifying which project the document was ingested into — ALWAYS tell the user the project (scope.project_name / scope.hint). Backpressure: if the response has retryable=true (too_many_jobs — account at concurrent-job capacity), the document was NOT ingested; wait retry_after_seconds and retry the SAME call, and pause new ingests until capacity frees rather than retrying in a tight loop." + attributesReuseGuidance + errorHandlingGuidance,
+	Description:  "Ingest a file into index4.ai (context engine). Provide exactly one of file_base64 (small files) or url (the server fetches it; use for large files). Returns job_id. Once done, doc_id equals job_id for index4ai_search, except when index4ai_jobs_status reports a `grill` object for the job, in which case grill.doc_id is the document to filter on (it differs from job_id on a dedup hit). The response includes a `scope` object identifying which project the document was ingested into. ALWAYS tell the user the project (scope.project_name / scope.hint). Backpressure: if the response has retryable=true (too_many_jobs: account at concurrent-job capacity), the document was NOT ingested; wait retry_after_seconds and retry the SAME call, and pause new ingests until capacity frees rather than retrying in a tight loop." + attributesReuseGuidance + errorHandlingGuidance,
 	InputSchema:  grillIngestInputSchema,
 	OutputSchema: grillIngestOutputSchema,
 }
@@ -131,7 +131,7 @@ var grillIngestSyncTool = &mcp.Tool{
 		DestructiveHint: boolPtr(false),
 		OpenWorldHint:   boolPtr(true),
 	},
-	Description:  "Ingest a file into index4ai; waits until terminal state. Provide exactly one of file_base64 (small files) or url (the server fetches it; use for large files). Returns job_id and status events. When the final status carries a `grill` object, ALWAYS use grill.doc_id as doc_filter rather than job_id — the two differ on a dedup hit. grill.deduplicated=true means the same file bytes were already indexed under the same conversion build, so nothing new was stored; grill.replaced_doc_ids lists documents evicted in favour of this job. The response includes a `scope` object identifying which project the document was ingested into — ALWAYS tell the user the project (scope.project_name / scope.hint). Backpressure: if the response has retryable=true (too_many_jobs — account at concurrent-job capacity), the document was NOT ingested; wait retry_after_seconds and retry the SAME call, and pause new ingests until capacity frees." + attributesReuseGuidance + errorHandlingGuidance,
+	Description:  "Ingest a file into index4.ai; waits until terminal state. Provide exactly one of file_base64 (small files) or url (the server fetches it; use for large files). Returns job_id and status events. When the final status carries a `grill` object, ALWAYS use grill.doc_id as doc_filter rather than job_id: the two differ on a dedup hit. grill.deduplicated=true means the same file bytes were already indexed under the same conversion build, so nothing new was stored; grill.replaced_doc_ids lists documents evicted in favour of this job. The response includes a `scope` object identifying which project the document was ingested into. ALWAYS tell the user the project (scope.project_name / scope.hint). Backpressure: if the response has retryable=true (too_many_jobs: account at concurrent-job capacity), the document was NOT ingested; wait retry_after_seconds and retry the SAME call, and pause new ingests until capacity frees." + attributesReuseGuidance + errorHandlingGuidance,
 	InputSchema:  grillIngestInputSchema,
 	OutputSchema: grillIngestOutputSchema,
 }
@@ -244,24 +244,24 @@ func submitIngest(ctx context.Context, c *client.Client, input GrillIngestInput,
 		body, st, err = grillIngestData(c, data, filename, projectID, meta)
 	}
 	if err != nil {
-		// Network/client error reaching the index4ai API — transient, retryable.
+		// Network/client error reaching the index4.ai API: transient, retryable.
 		return "", GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}
 	}
-	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4ai ingest"); authErr != "" {
+	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4.ai ingest"); authErr != "" {
 		return "", errOut(authCode, "%s", authErr)
 	}
 	if throttle, retryAfter, ok := interpretTooManyJobs(st, body); ok {
 		return "", GrillError{Error: throttle, Code: CodeTooManyJobs, Retryable: isRetryableCode(CodeTooManyJobs, 0), RetryAfterSeconds: retryAfter}
 	}
-	if conflict, ok := interpretProjectConflict(st, body, "index4ai ingest"); ok {
+	if conflict, ok := interpretProjectConflict(st, body, "index4.ai ingest"); ok {
 		return "", errOut(CodeInvalidInput, "%s", conflict)
 	}
 	if st != http.StatusCreated {
-		return "", GrillError{Error: fmt.Sprintf("index4ai ingest: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}
+		return "", GrillError{Error: fmt.Sprintf("index4.ai ingest: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}
 	}
 	j, err := client.ParseJob(body)
 	if err != nil || j.JobID == "" {
-		return "", errOut(CodeParseError, "index4ai ingest: could not parse job_id from response: %s", string(body))
+		return "", errOut(CodeParseError, "index4.ai ingest: could not parse job_id from response: %s", string(body))
 	}
 	slog.Info("index4ai ingest job_id", "job_id", j.JobID)
 	return j.JobID, GrillError{}
@@ -278,7 +278,7 @@ var grillIngestResumeInputSchema = &jsonschema.Schema{
 		},
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 	},
 	Required: []string{"job_id"},
@@ -293,7 +293,7 @@ var grillIngestResumeTool = &mcp.Tool{
 		ReadOnlyHint:  true,
 		OpenWorldHint: boolPtr(true),
 	},
-	Description:  "Resume tracking an in-progress index4ai ingestion job started by an earlier index4ai_ingest call. Connects to the status SSE stream for the given job_id and waits until a terminal state (done, failed, grilled, deleted), emitting progress notifications." + errorHandlingGuidance,
+	Description:  "Resume tracking an in-progress index4.ai ingestion job started by an earlier index4ai_ingest call. Connects to the status SSE stream for the given job_id and waits until a terminal state (done, failed, grilled, deleted), emitting progress notifications." + errorHandlingGuidance,
 	InputSchema:  grillIngestResumeInputSchema,
 	OutputSchema: grillIngestOutputSchema,
 }
@@ -381,7 +381,7 @@ var grillSearchInputSchema = &jsonschema.Schema{
 		},
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 		"project_id": projectIDSchema,
 	},
@@ -408,7 +408,7 @@ var grillSearchTool = &mcp.Tool{
 		ReadOnlyHint:  true,
 		OpenWorldHint: boolPtr(true),
 	},
-	Description:  "Search the index4ai context engine and return a context block for RAG. The doc_filter parameter restricts the search to a single document (its doc_id: the job_id from index4ai_ingest, or grill.doc_id whenever the ingest or index4ai_jobs_status returned a `grill` object — the two differ on a dedup hit, so prefer grill.doc_id when it is present); exclude_doc_ids omits the given doc_ids from results. Result count is bounded server-side by relevance and a token budget — there is no top_k. The response includes a `scope` object identifying which project was searched — ALWAYS tell the user the project (scope.project_name / scope.hint) when presenting results." + errorHandlingGuidance,
+	Description:  "Search the index4.ai context engine and return a context block for RAG. The doc_filter parameter restricts the search to a single document (its doc_id: the job_id from index4ai_ingest, or grill.doc_id whenever the ingest or index4ai_jobs_status returned a `grill` object: the two differ on a dedup hit, so prefer grill.doc_id when it is present); exclude_doc_ids omits the given doc_ids from results. Result count is bounded server-side by relevance and a token budget: there is no top_k. The response includes a `scope` object identifying which project was searched. ALWAYS tell the user the project (scope.project_name / scope.hint) when presenting results." + errorHandlingGuidance,
 	InputSchema:  grillSearchInputSchema,
 	OutputSchema: grillSearchOutputSchema,
 }
@@ -474,17 +474,17 @@ func GrillSearch(ctx context.Context, _ *mcp.CallToolRequest, input GrillSearchI
 		}, projectID)
 	}
 	if err != nil {
-		// Network/client error reaching the index4ai API — transient, retryable.
+		// Network/client error reaching the index4.ai API: transient, retryable.
 		return errResult(), GrillSearchOutput{GrillError: GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}}, nil
 	}
-	if authErr, authCode := interpretAuthError(ctx, input.Token, st, respBody, "index4ai search"); authErr != "" {
+	if authErr, authCode := interpretAuthError(ctx, input.Token, st, respBody, "index4.ai search"); authErr != "" {
 		return errResult(), GrillSearchOutput{GrillError: errOut(authCode, "%s", authErr)}, nil
 	}
-	if conflict, ok := interpretProjectConflict(st, respBody, "index4ai search"); ok {
+	if conflict, ok := interpretProjectConflict(st, respBody, "index4.ai search"); ok {
 		return errResult(), GrillSearchOutput{GrillError: errOut(CodeInvalidInput, "%s", conflict)}, nil
 	}
 	if st != http.StatusOK {
-		return errResult(), GrillSearchOutput{GrillError: GrillError{Error: fmt.Sprintf("index4ai search: HTTP %d: %s", st, string(respBody)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}}, nil
+		return errResult(), GrillSearchOutput{GrillError: GrillError{Error: fmt.Sprintf("index4.ai search: HTTP %d: %s", st, string(respBody)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}}, nil
 	}
 
 	var result struct {
@@ -492,7 +492,7 @@ func GrillSearch(ctx context.Context, _ *mcp.CallToolRequest, input GrillSearchI
 		Assets  map[string]any `json:"assets"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return errResult(), GrillSearchOutput{GrillError: errOut(CodeParseError, "index4ai search: parse response: %v", err)}, nil
+		return errResult(), GrillSearchOutput{GrillError: errOut(CodeParseError, "index4.ai search: parse response: %v", err)}, nil
 	}
 	_, source := projectIDSource(token, input.ProjectID)
 	scope := resolveScope(c, token, projectID, "", source)
@@ -750,7 +750,7 @@ var grillDocsListInputSchema = &jsonschema.Schema{
 	Properties: map[string]*jsonschema.Schema{
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 		"project_id": projectIDSchema,
 	},
@@ -781,7 +781,7 @@ var grillDocsListTool = &mcp.Tool{
 		ReadOnlyHint:  true,
 		OpenWorldHint: boolPtr(true),
 	},
-	Description:  "List documents currently ingested into index4ai for the authenticated project namespace. The tool follows server-side pagination internally and returns the complete merged list in one response; `total_documents` is the authoritative full count. If fewer documents than total_documents are returned (safety cap or temporarily unavailable documents), a `note` field explains the gap — surface it to the user. Returns metadata only (doc_id, filename, ingested_at, chunk/page counts, etc.); document content is retrieved via index4ai_search. A returned doc_id serves as the doc_filter on index4ai_search to scope a query to a specific document. The response includes a `scope` object identifying which project these documents belong to — ALWAYS tell the user the project (scope.project_name / scope.hint) when presenting the list." + errorHandlingGuidance,
+	Description:  "List documents currently ingested into index4.ai for the authenticated project namespace. The tool follows server-side pagination internally and returns the complete merged list in one response; `total_documents` is the authoritative full count. If fewer documents than total_documents are returned (safety cap or temporarily unavailable documents), a `note` field explains the gap; surface it to the user. Returns metadata only (doc_id, filename, ingested_at, chunk/page counts, etc.); document content is retrieved via index4ai_search. A returned doc_id serves as the doc_filter on index4ai_search to scope a query to a specific document. The response includes a `scope` object identifying which project these documents belong to. ALWAYS tell the user the project (scope.project_name / scope.hint) when presenting the list." + errorHandlingGuidance,
 	InputSchema:  grillDocsListInputSchema,
 	OutputSchema: grillDocsListOutputSchema,
 }
@@ -879,24 +879,24 @@ func GrillDocsList(ctx context.Context, _ *mcp.CallToolRequest, input GrillDocsL
 		var p grillDocsPage
 		body, st, err := grillListDocs(c, projectID, cursor)
 		if err != nil {
-			// Network/client error reaching the index4ai API — transient, retryable.
+			// Network/client error reaching the index4.ai API: transient, retryable.
 			ge := GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}
 			return p, &ge, false
 		}
-		if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4ai docs list"); authErr != "" {
+		if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4.ai docs list"); authErr != "" {
 			ge := errOut(authCode, "%s", authErr)
 			return p, &ge, true
 		}
-		if conflict, ok := interpretProjectConflict(st, body, "index4ai docs list"); ok {
+		if conflict, ok := interpretProjectConflict(st, body, "index4.ai docs list"); ok {
 			ge := errOut(CodeInvalidInput, "%s", conflict)
 			return p, &ge, true
 		}
 		if st != http.StatusOK {
-			ge := GrillError{Error: fmt.Sprintf("index4ai docs list: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}
+			ge := GrillError{Error: fmt.Sprintf("index4.ai docs list: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}
 			return p, &ge, false
 		}
 		if err := json.Unmarshal(body, &p); err != nil {
-			ge := errOut(CodeParseError, "index4ai docs list: parse response: %v", err)
+			ge := errOut(CodeParseError, "index4.ai docs list: parse response: %v", err)
 			return p, &ge, false
 		}
 		return p, nil, false
@@ -970,7 +970,7 @@ var grillJobsStatusInputSchema = &jsonschema.Schema{
 		},
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 	},
 	Required: []string{"job_ids"},
@@ -1018,7 +1018,7 @@ var grillJobsStatusTool = &mcp.Tool{
 		ReadOnlyHint:  true,
 		OpenWorldHint: boolPtr(true),
 	},
-	Description:  "Get current status for one or more index4ai jobs (up to 50). Returns a JSON snapshot per job — no streaming — reporting progress for jobs created by index4ai_ingest. pending_count/done_count/failed_count give a quick summary. When a result carries a `grill` object, ALWAYS use grill.doc_id as doc_filter rather than job_id — the two differ on a dedup hit. grill.deduplicated=true means the same file bytes were already indexed under the same conversion build, so nothing new was stored; grill.replaced_doc_ids lists documents evicted in favour of this job." + errorHandlingGuidance,
+	Description:  "Get current status for one or more index4.ai jobs (up to 50). Returns a JSON snapshot per job (no streaming), reporting progress for jobs created by index4ai_ingest. pending_count/done_count/failed_count give a quick summary. When a result carries a `grill` object, ALWAYS use grill.doc_id as doc_filter rather than job_id: the two differ on a dedup hit. grill.deduplicated=true means the same file bytes were already indexed under the same conversion build, so nothing new was stored; grill.replaced_doc_ids lists documents evicted in favour of this job." + errorHandlingGuidance,
 	InputSchema:  grillJobsStatusInputSchema,
 	OutputSchema: grillJobsStatusOutputSchema,
 }
@@ -1128,7 +1128,7 @@ var grillProjectsInputSchema = &jsonschema.Schema{
 	Properties: map[string]*jsonschema.Schema{
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 	},
 }
@@ -1151,7 +1151,7 @@ var grillProjectsTool = &mcp.Tool{
 		ReadOnlyHint:  true,
 		OpenWorldHint: boolPtr(true),
 	},
-	Description:  "List your accessible projects. Returns project IDs, names, and protection status, mapping a project name to the project_id used by the other index4ai tools. With a project API key (poma_proj_…) the gateway refuses the account listing; the tool then returns just the one project the key is bound to." + errorHandlingGuidance,
+	Description:  "List your accessible projects. Returns project IDs, names, and protection status, mapping a project name to the project_id used by the other index4.ai tools. With a project API key (poma_proj_…) the gateway refuses the account listing; the tool then returns just the one project the key is bound to." + errorHandlingGuidance,
 	InputSchema:  grillProjectsInputSchema,
 	OutputSchema: grillProjectsOutputSchema,
 }
@@ -1216,27 +1216,27 @@ func GrillProjects(ctx context.Context, _ *mcp.CallToolRequest, input GrillProje
 		body, st, err = grillListProjects(c, "grill")
 	}
 	if err != nil {
-		// Network/client error reaching the index4ai API — transient, retryable.
+		// Network/client error reaching the index4.ai API: transient, retryable.
 		return errResult(), GrillProjectsOutput{GrillError: GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)}}, nil
 	}
-	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4ai projects"); authErr != "" {
+	if authErr, authCode := interpretAuthError(ctx, input.Token, st, body, "index4.ai projects"); authErr != "" {
 		return errResult(), GrillProjectsOutput{GrillError: errOut(authCode, "%s", authErr)}, nil
 	}
 	if st != http.StatusOK {
-		return errResult(), GrillProjectsOutput{GrillError: GrillError{Error: fmt.Sprintf("index4ai projects: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}}, nil
+		return errResult(), GrillProjectsOutput{GrillError: GrillError{Error: fmt.Sprintf("index4.ai projects: HTTP %d: %s", st, string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)}}, nil
 	}
 
 	var projects []grillProject
 	if projectKey {
 		var p grillProject
 		if err := json.Unmarshal(body, &p); err != nil || (p.ProjectID == "" && p.ID == "") {
-			return errResult(), GrillProjectsOutput{GrillError: errOut(CodeParseError, "index4ai projects: parse /projects/info response: %s", string(body))}, nil
+			return errResult(), GrillProjectsOutput{GrillError: errOut(CodeParseError, "index4.ai projects: parse /projects/info response: %s", string(body))}, nil
 		}
 		projects = []grillProject{p}
 	} else {
 		projects, err = parseProjects(body)
 		if err != nil {
-			return errResult(), GrillProjectsOutput{GrillError: errOut(CodeParseError, "index4ai projects: parse response: %v", err)}, nil
+			return errResult(), GrillProjectsOutput{GrillError: errOut(CodeParseError, "index4.ai projects: parse response: %v", err)}, nil
 		}
 	}
 
