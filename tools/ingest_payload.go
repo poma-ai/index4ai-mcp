@@ -206,11 +206,11 @@ func HandleIngestUpload(w http.ResponseWriter, r *http.Request) {
 	projectID := r.Header.Get("X-Project-ID")
 	body, st, err := grillIngestData(c, data, filename, projectID, meta)
 	if err != nil {
-		// Network/client error reaching the index4ai API — transient, retryable.
+		// Network/client error reaching the index4.ai API: transient, retryable.
 		writeIngestUploadError(w, http.StatusBadGateway, GrillError{Error: err.Error(), Code: CodeTransportError, Retryable: isRetryableCode(CodeTransportError, 0)})
 		return
 	}
-	if authErr, authCode := interpretAuthError(r.Context(), "", st, body, "index4ai ingest"); authErr != "" {
+	if authErr, authCode := interpretAuthError(r.Context(), "", st, body, "index4.ai ingest"); authErr != "" {
 		writeIngestUploadError(w, st, GrillError{Error: authErr, Code: authCode})
 		return
 	}
@@ -219,7 +219,7 @@ func HandleIngestUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if st != http.StatusCreated {
-		writeIngestUploadError(w, st, GrillError{Error: fmt.Sprintf("index4ai ingest: %s", string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)})
+		writeIngestUploadError(w, st, GrillError{Error: fmt.Sprintf("index4.ai ingest: %s", string(body)), Code: CodeUpstreamError, Retryable: isRetryableCode(CodeUpstreamError, st)})
 		return
 	}
 
@@ -248,7 +248,7 @@ func writeIngestUploadError(w http.ResponseWriter, httpStatus int, ge GrillError
 //
 // This is deliberately far below GRILL_INGEST_MAX_BYTES. A base64 file inside a
 // JSON-RPC message is buffered several times over before the bytes reach the
-// index4ai API — the stateless HTTP path reads the body, re-buffers it, re-reads
+// index4.ai API: the stateless HTTP path reads the body, re-buffers it, re-reads
 // it, the tool arguments are unmarshalled and re-marshalled to apply schema
 // defaults, and only then is the base64 decoded — so the peak cost is a
 // multiple of the body size. Large files belong on POST /ingest-upload, which

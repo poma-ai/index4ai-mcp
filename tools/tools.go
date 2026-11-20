@@ -4,7 +4,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Register adds all index4ai tools to the MCP server.
+// Register adds all index4.ai tools to the MCP server.
 func Register(server *mcp.Server) {
 	mcp.AddTool(server, grillExplainTool, GrillExplain)
 	mcp.AddTool(server, grillIngestTool, GrillIngest)

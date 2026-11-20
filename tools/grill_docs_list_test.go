@@ -63,7 +63,7 @@ func TestGrillDocsListNote(t *testing.T) {
 			shown:     100,
 			total:     300,
 			truncated: true,
-			pagingErr: "index4ai docs list: HTTP 500: boom",
+			pagingErr: "index4.ai docs list: HTTP 500: boom",
 			want:      []string{"Showing 100 of 300 documents.", "Fetching additional pages failed", "HTTP 500"},
 		},
 	}
@@ -215,7 +215,7 @@ func TestGrillDocsListAutoPaging(t *testing.T) {
 				return 500, `{"error":"boom"}`
 			},
 			wantRequests: 1,
-			wantErrSub:   "index4ai docs list: HTTP 500",
+			wantErrSub:   "index4.ai docs list: HTTP 500",
 		},
 		{
 			name: "mid-loop auth failure is a hard error, not a note",

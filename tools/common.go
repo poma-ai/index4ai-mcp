@@ -18,7 +18,7 @@ import (
 const (
 	defaultAPIBaseURL = "https://api.index4.ai"
 	defaultConsoleURL = "https://console.index4.ai"
-	// defaultVersionPrefix is the version path on the index4ai hosts, whose gateway
+	// defaultVersionPrefix is the version path on the index4.ai hosts, whose gateway
 	// rewrites /v1/* to /index4ai/v1/*. mountedVersionPrefix is the path the API itself
 	// serves, used on any other host (api.poma-ai.com, a local api, test stubs), where
 	// /v1 is the retired POMA API v1 and answers 410.
@@ -28,7 +28,7 @@ const (
 	defaultStatusPrefix  = "/status/v1"
 )
 
-// apiOrigin is the scheme://host of the index4ai API: POMA_API_BASE_URL with any path
+// apiOrigin is the scheme://host of the index4.ai API: POMA_API_BASE_URL with any path
 // dropped, so "https://api.index4.ai", ".../v1" and ".../index4ai/v1" all work.
 func apiOrigin() string {
 	v := strings.TrimRight(strings.TrimSpace(os.Getenv("POMA_API_BASE_URL")), "/")
@@ -41,7 +41,7 @@ func apiOrigin() string {
 	return v
 }
 
-// apiBaseURL is the versioned index4ai API root: <origin>/v1 on an index4.ai host,
+// apiBaseURL is the versioned index4.ai API root: <origin>/v1 on an index4.ai host,
 // <origin>/index4ai/v1 anywhere else. Any path on POMA_API_BASE_URL is replaced rather
 // than kept: a grill-era value such as https://api.poma-ai.com/v3 would otherwise send
 // every call to /v3/ingest, which does not exist (v3 serves /v3/grill/ingest).
@@ -407,7 +407,7 @@ func interpretTooManyJobs(statusCode int, body []byte) (msg string, retryAfter i
 	}
 
 	msg = fmt.Sprintf(
-		"index4ai ingest: job queue full — the account is at its concurrent-job capacity (too_many_jobs). "+
+		"index4.ai ingest: job queue full: the account is at its concurrent-job capacity (too_many_jobs). "+
 			"This is a TRANSIENT backpressure signal, NOT a failure: the document was NOT ingested and no credits were spent. "+
 			"Wait ~%ds, then retry this same ingest. Do NOT send more ingests until capacity frees — "+
 			"poll index4ai_jobs_status and resume only once active jobs drop below the account limit. Server: %s",

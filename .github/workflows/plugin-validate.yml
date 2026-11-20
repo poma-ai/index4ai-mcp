@@ -1,0 +1,63 @@
+name: Plugin
+
+# Validates the agent plugin and its marketplace manifest. The Docker workflow skips
+# pushes that touch only these paths, so without this nothing checks them.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+    - "plugins/**"
+    - ".claude-plugin/**"
+    - ".github/workflows/plugin-validate.yml"
+  pull_request:
+    paths:
+    - "plugins/**"
+    - ".claude-plugin/**"
+    - ".github/workflows/plugin-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    # Pinned so a new CLI release cannot turn this red with no change in the repo.
+    # Raise it deliberately to pick up newer validation rules.
+    - name: Install Claude Code
+      run: npm install -g @anthropic-ai/claude-code@2.1.296
+
+    # --strict turns warnings (unknown fields, missing metadata) into failures.
+    - name: Validate marketplace
+      run: claude plugin validate --strict .
+
+    - name: Validate plugin
+      run: claude plugin validate --strict ./plugins/index4ai
+
+    # claude.ai and Claude Desktop refuse a plugin whose skill frontmatter contains
+    # "<" or ">" ("description cannot contain XML tags"); the CLI validator does not.
+    - name: No angle brackets in skill frontmatter
+      run: |
+        bad=0
+        for f in plugins/index4ai/skills/*/SKILL.md; do
+          if awk '/^---$/{n++; next} n==1' "$f" | grep -n '[<>]'; then
+            echo "angle bracket in frontmatter of $f"; bad=1
+          fi
+        done
+        exit $bad
+
+    - name: Manifest versions match
+      run: |
+        a=$(jq -r .version plugins/index4ai/plugin.json)
+        b=$(jq -r .version plugins/index4ai/.claude-plugin/plugin.json)
+        [ "$a" = "$b" ] || { echo "plugin.json $a != .claude-plugin/plugin.json $b"; exit 1; }
+
+    - name: MCP declarations point at the same endpoint
+      run: |
+        a=$(jq -r .mcpServers.index4ai.url plugins/index4ai/mcp.json)
+        b=$(jq -r .mcpServers.index4ai.url plugins/index4ai/.mcp.json)
+        [ "$a" = "$b" ] || { echo "mcp.json $a != .mcp.json $b"; exit 1; }

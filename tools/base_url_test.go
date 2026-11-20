@@ -2,7 +2,7 @@ package tools
 
 import "testing"
 
-// The index4ai API is /v1 on the index4.ai hosts (the gateway rewrites it to the
+// The index4.ai API is /v1 on the index4.ai hosts (the gateway rewrites it to the
 // /index4ai/v1 mount) and /index4ai/v1 on any other host, where /v1 is the retired POMA
 // API v1. The status SSE service stays at /status/v1 on the same host. A
 // POMA_API_BASE_URL given with or without a version path must resolve to the same URLs.

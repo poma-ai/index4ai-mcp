@@ -33,7 +33,7 @@ var ingestBatchInputSchema = &jsonschema.Schema{
 		},
 		"token": {
 			Type:        "string",
-			Description: "index4ai API key or token. Usually not needed — the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
+			Description: "index4.ai API key or token. Usually not needed: the server takes the token from the Authorization (Bearer) or x-api-key header in the MCP client config. Only pass explicitly to override.",
 		},
 		"concurrency": {
 			Type:        "integer",
@@ -68,7 +68,7 @@ var ingestBatchTool = &mcp.Tool{
 		DestructiveHint: boolPtr(false),
 		OpenWorldHint:   boolPtr(true),
 	},
-	Description:  fmt.Sprintf("Ingest several documents into index4ai in one call, with controlled upload concurrency (default %d, max %d). Accepts up to %d items, each a url or file_base64. Returns one result per item, in input order, immediately after the uploads finish — it does not wait for server-side processing; poll progress with index4ai_jobs_status. The server cannot read the caller's local files: for a folder of local files, either upload each with file_base64 or host them and pass urls. The response includes a `scope` object identifying which project the documents were ingested into — ALWAYS tell the user the project (scope.project_name / scope.hint). Free-tier accounts should set concurrency to 1. When the account is at its concurrent-job capacity the API returns too_many_jobs; those items come back with quota_exceed=true (counted in quota_exceeded_count) — they were NOT ingested. Retry only the quota_exceed items once running jobs finish (poll index4ai_jobs_status); lower concurrency if it recurs. attributes and attribute_schema apply to every item.", ingestBatchDefaultConcurrent, ingestBatchMaxConcurrent, ingestBatchMaxItems) + attributesReuseGuidance + errorHandlingGuidance,
+	Description:  fmt.Sprintf("Ingest several documents into index4.ai in one call, with controlled upload concurrency (default %d, max %d). Accepts up to %d items, each a url or file_base64. Returns one result per item, in input order, immediately after the uploads finish: it does not wait for server-side processing; poll progress with index4ai_jobs_status. The server cannot read the caller's local files: for a folder of local files, either upload each with file_base64 or host them and pass urls. The response includes a `scope` object identifying which project the documents were ingested into. ALWAYS tell the user the project (scope.project_name / scope.hint). Free-tier accounts should set concurrency to 1. When the account is at its concurrent-job capacity the API returns too_many_jobs; those items come back with quota_exceed=true (counted in quota_exceeded_count): they were NOT ingested. Retry only the quota_exceed items once running jobs finish (poll index4ai_jobs_status); lower concurrency if it recurs. attributes and attribute_schema apply to every item.", ingestBatchDefaultConcurrent, ingestBatchMaxConcurrent, ingestBatchMaxItems) + attributesReuseGuidance + errorHandlingGuidance,
 	InputSchema:  ingestBatchInputSchema,
 	OutputSchema: ingestBatchOutputSchema,
 }

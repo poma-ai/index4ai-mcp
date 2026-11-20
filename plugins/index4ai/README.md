@@ -1,7 +1,7 @@
-# index4ai — agent plugin
+# index4.ai agent plugin
 
 An [Agent Plugin](https://agent-plugins.org) (spec 1.0.0) that gives any supporting agent
-the index4ai context engine: ingest documents, then search them semantically.
+the index4.ai context engine: ingest documents, then search them semantically.
 
 ## Contents
 
@@ -13,11 +13,13 @@ index4ai/
 ├── .mcp.json                                # Claude Code MCP declaration
 ├── MANUAL.md                                # install guide: Claude Code, Cursor, Codex
 └── skills/
-    ├── index4ai-ingest/
-    │   ├── SKILL.md                         # ingest, resume, job status
+    ├── index4ai-add-documents/
+    │   ├── SKILL.md                         # ingest, batch, resume, job status
     │   └── references/errors.md             # error codes and retry rules
-    └── index4ai-search/
-        └── SKILL.md                         # search, doc scoping, projects
+    ├── index4ai-search-project/
+    │   └── SKILL.md                         # search across a project, attribute filters
+    └── index4ai-search-document/
+        └── SKILL.md                         # search inside one document, doc id resolution
 ```
 
 `plugin.json` and `mcp.json` validate against the 1.0.0 schemas
@@ -26,12 +28,25 @@ index4ai/
 [Agent Skills](https://agentskills.io/specification) spec.
 
 The `.claude-plugin/` and `.mcp.json` files are Claude Code's own format, which is not the
-Agent Plugins standard — Claude Code reads `.mcp.json`, never `mcp.json`. Both MCP
-declarations point at the same endpoint; keep them in sync. Install steps for each client
-are in [MANUAL.md](MANUAL.md) — the short version is
-`npx plugins add https://github.com/poma-ai/index4ai-mcp`, or
-`claude plugin marketplace add poma-ai/index4ai-mcp` for Claude Code, served by
+Agent Plugins standard: Claude Code reads `.mcp.json`, never `mcp.json`. Both MCP
+declarations point at the same endpoint; keep them in sync.
+
+## Install
+
+In a Claude Code session (2.1.275 or later), one step adds the marketplace and installs:
+
+```
+/plugin install index4ai --marketplace poma-ai/index4ai-mcp
+```
+
+From a shell, `claude plugin install index4ai --marketplace poma-ai/index4ai-mcp` does the
+same on 2.1.292 or later; on older versions run
+`claude plugin marketplace add poma-ai/index4ai-mcp` and then
+`claude plugin install index4ai@index4ai`. The marketplace is served by
 `.claude-plugin/marketplace.json` at the repo root.
+
+For Cursor, Codex and other clients, `npx plugins add https://github.com/poma-ai/index4ai-mcp`
+installs into whichever tools it detects. Per-client steps are in [MANUAL.md](MANUAL.md).
 
 ## MCP server
 
@@ -45,9 +60,6 @@ are in [MANUAL.md](MANUAL.md) — the short version is
   }
 }
 ```
-
-The endpoint is not live yet; it serves once the `index4ai-mcp` deployment is enabled in
-poma-deploy.
 
 Auth is OAuth 2.0. The first connection returns `401` with a `WWW-Authenticate` challenge
 and the client walks you through a browser login. MCP SDKs handle registration, token
@@ -73,7 +85,7 @@ documents by `url` and small ones by `file_base64`; large local files go through
 
 | Tool | What it does |
 |---|---|
-| `index4ai_explain` | How index4ai works, and how to get an API key. No auth. |
+| `index4ai_explain` | How index4.ai works, and how to get an API key. No auth. |
 | `index4ai_ingest` | Start an ingest, return `job_id` immediately. |
 | `index4ai_ingest_sync` | Ingest and wait for a terminal state. |
 | `index4ai_ingest_batch` | Ingest up to 50 documents in one call; one `job_id` or error per item. |
@@ -86,9 +98,11 @@ documents by `url` and small ones by `file_base64`; large local files go through
 
 ## Versioning
 
-`plugin.json` tracks the tool surface it documents (currently `0.2.0`). When the tools in
-`tools/` change, update the skills and bump `version` here, in
-`.claude-plugin/plugin.json`, and in `/.claude-plugin/marketplace.json`.
+`plugin.json` tracks the tool surface it documents (currently `0.3.0`). When the tools in
+`tools/` change, update the skills and bump `version` in `plugin.json` and in
+`.claude-plugin/plugin.json`. The marketplace entry carries no version on purpose: Claude
+Code takes it from `.claude-plugin/plugin.json`, and installed users only receive an update
+when that value changes.
 
 ## License
 

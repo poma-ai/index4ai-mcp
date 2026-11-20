@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-`index4ai-mcp` is a hosted [Model Context Protocol](https://modelcontextprotocol.io) server wrapping the index4ai API (the retrieval product formerly called POMA Grill, now served on its own host and paths). It runs only as a streamable-HTTP server behind the gateway at `mcp.index4.ai` / `mcp-dev.index4.ai`. There is no stdio or local mode. Tools: `index4ai_ingest` (+ `_sync`, `_batch`, `_resume`), `index4ai_search`, `index4ai_jobs_status`, `index4ai_docs_list`, `index4ai_attributes`, `index4ai_projects`, `index4ai_explain`.
+`index4ai-mcp` is a hosted [Model Context Protocol](https://modelcontextprotocol.io) server wrapping the index4.ai API (the retrieval product formerly called POMA Grill, now served on its own host and paths). It runs only as a streamable-HTTP server behind the gateway at `mcp.index4.ai` / `mcp-dev.index4.ai`. There is no stdio or local mode. Tools: `index4ai_ingest` (+ `_sync`, `_batch`, `_resume`), `index4ai_search`, `index4ai_jobs_status`, `index4ai_docs_list`, `index4ai_attributes`, `index4ai_projects`, `index4ai_explain`.
 
-Forked from `poma-ai/poma-grill-mcp` (Go variant). `plugins/index4ai/` is the agent plugin (skills + MCP declaration pointing at `mcp.index4.ai`), listed by `.claude-plugin/marketplace.json`; its skills document the tool surface, so update them when tools change. Go identifiers still say `Grill` (`GrillError`, `grillClient`, `grill*.go`); user-facing names and messages say index4ai.
+Forked from `poma-ai/poma-grill-mcp` (Go variant). `plugins/index4ai/` is the agent plugin (skills + MCP declaration pointing at `mcp.index4.ai`), listed by `.claude-plugin/marketplace.json`; its skills document the tool surface, so update them when tools change. Go identifiers still say `Grill` (`GrillError`, `grillClient`, `grill*.go`); the service is called index4.ai, and every user-facing name, description and message says so. Identifiers that cannot carry a dot keep `index4ai`: tool names (`index4ai_search`), skill names (`index4ai-add-documents`), the plugin, marketplace and MCP server key, the repo and image, and the `/index4ai/v1` path. Log messages (`slog`) also still say `index4ai`.
 
 ## Commands
 
@@ -29,7 +29,7 @@ The contract is `poma-services-go/docs/api/index4ai/v1/openapi.yaml` (generated 
 
 Two footguns:
 - The status SSE stream is not under the API version path. It is `https://api.index4.ai/status/v1/jobs/{job_id}`, derived from the API origin (`statusAPIBaseURL`).
-- OAuth is not on the index4ai host. `api(-dev).index4.ai/.well-known/oauth-authorization-server` answers with issuer `https://api(-dev).poma-ai.com`, so the protected-resource metadata advertises that host (`POMA_AUTH_SERVER_URL`, else derived from `POMA_API_BASE_URL` by mapping `.index4.ai` to `.poma-ai.com`), never the API host. A fixed prod default would put dev users on the prod login.
+- OAuth is not on the index4.ai host. `api(-dev).index4.ai/.well-known/oauth-authorization-server` answers with issuer `https://api(-dev).poma-ai.com`, so the protected-resource metadata advertises that host (`POMA_AUTH_SERVER_URL`, else derived from `POMA_API_BASE_URL` by mapping `.index4.ai` to `.poma-ai.com`), never the API host. A fixed prod default would put dev users on the prod login.
 
 The API still names the job-status dedup object `grill` (`grill.doc_id` etc.), so tool output and descriptions keep that key.
 

@@ -1,8 +1,8 @@
 package tools
 
-// index4ai HTTP client wrappers around (*client.Client).Do / DoJSON.
+// index4.ai HTTP client wrappers around (*client.Client).Do / DoJSON.
 //
-// Paths are relative to apiBaseURL() (https://api.index4.ai/v1). index4ai serves the
+// Paths are relative to apiBaseURL() (https://api.index4.ai/v1). index4.ai serves the
 // retrieval product at the root: /v1/ingest is what /api/v4/grill/ingest is on the POMA
 // API (poma-services-go docs/api/index4ai/v1/openapi.yaml).
 
@@ -34,7 +34,7 @@ func grillIngestData(c *client.Client, data []byte, filename string, projectID s
 }
 
 // grillIngestURL sends POST /ingest with an X-Remote-URL header and no
-// body: the index4ai server fetches and ingests the remote URL. Returns the
+// body: the index4.ai server fetches and ingests the remote URL. Returns the
 // same {job_id} shape as grillIngestData.
 func grillIngestURL(c *client.Client, remoteURL, projectID string, meta ingestHeaders) ([]byte, int, error) {
 	headers := map[string]string{

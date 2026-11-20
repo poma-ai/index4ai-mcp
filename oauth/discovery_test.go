@@ -8,13 +8,13 @@ import (
 )
 
 // The api answers OAuth discovery on api(-dev).index4.ai with issuer api(-dev).poma-ai.com,
-// so the advertised authorization server must be that issuer, never the index4ai host, and
+// so the advertised authorization server must be that issuer, never the index4.ai host, and
 // a dev deployment must never fall back to the prod issuer.
 func TestProtectedResourceMetaAuthServer(t *testing.T) {
 	tests := []struct{ name, base, env, want string }{
 		{"unset everything is the prod issuer", "", "", "https://api.poma-ai.com"},
-		{"prod index4ai host maps to its issuer", "https://api.index4.ai/index4ai/v1", "", "https://api.poma-ai.com"},
-		{"dev index4ai host maps to the dev issuer", "https://api-dev.index4.ai", "", "https://api-dev.poma-ai.com"},
+		{"prod index4.ai host maps to its issuer", "https://api.index4.ai/index4ai/v1", "", "https://api.poma-ai.com"},
+		{"dev index4.ai host maps to the dev issuer", "https://api-dev.index4.ai", "", "https://api-dev.poma-ai.com"},
 		{"a poma-ai.com host is the issuer itself", "https://api-dev.poma-ai.com", "", "https://api-dev.poma-ai.com"},
 		{"explicit override wins, trailing slash trimmed", "https://api.index4.ai", "https://api-dev.poma-ai.com/", "https://api-dev.poma-ai.com"},
 	}

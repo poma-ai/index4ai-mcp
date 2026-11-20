@@ -17,7 +17,7 @@ func TestConsoleURLInUserMessages(t *testing.T) {
 		env  string
 		want string
 	}{
-		{name: "unset uses the index4ai console", env: "", want: "https://console.index4.ai"},
+		{name: "unset uses the index4.ai console", env: "", want: "https://console.index4.ai"},
 		{name: "override", env: "https://console-dev.index4.ai", want: "https://console-dev.index4.ai"},
 		{name: "trailing slash and space trimmed", env: " https://console-dev.index4.ai/ ", want: "https://console-dev.index4.ai"},
 	}
