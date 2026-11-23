@@ -12,6 +12,7 @@ index4ai/
 ├── .claude-plugin/plugin.json               # Claude Code manifest
 ├── .mcp.json                                # Claude Code MCP declaration
 ├── MANUAL.md                                # install guide: Claude Code, Cursor, Codex
+├── icon.png                                 # 512x512 listing icon (Anthropic directory)
 └── skills/
     ├── index4ai-add-documents/
     │   ├── SKILL.md                         # ingest, batch, resume, job status
@@ -98,7 +99,7 @@ documents by `url` and small ones by `file_base64`; large local files go through
 
 ## Versioning
 
-`plugin.json` tracks the tool surface it documents (currently `0.3.0`). When the tools in
+`plugin.json` tracks the tool surface it documents (currently `0.3.1`). When the tools in
 `tools/` change, update the skills and bump `version` in `plugin.json` and in
 `.claude-plugin/plugin.json`. The marketplace entry carries no version on purpose: Claude
 Code takes it from `.claude-plugin/plugin.json`, and installed users only receive an update
