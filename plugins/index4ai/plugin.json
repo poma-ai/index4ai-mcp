@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "index4ai",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "index4.ai: ingest documents into the index4.ai context engine and run semantic search over them from any agent.",
   "author": {
     "name": "POMA AI",
