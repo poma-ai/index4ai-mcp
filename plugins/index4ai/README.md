@@ -3,35 +3,6 @@
 An [Agent Plugin](https://agent-plugins.org) (spec 1.0.0) that gives any supporting agent
 the index4.ai context engine: ingest documents, then search them semantically.
 
-## Contents
-
-```
-index4ai/
-├── plugin.json                              # Agent Plugins manifest
-├── mcp.json                                 # Agent Plugins MCP declaration
-├── .claude-plugin/plugin.json               # Claude Code manifest
-├── .mcp.json                                # Claude Code MCP declaration
-├── MANUAL.md                                # install guide: Claude Code, Cursor, Codex
-├── icon.png                                 # 512x512 listing icon (Anthropic directory)
-└── skills/
-    ├── index4ai-add-documents/
-    │   ├── SKILL.md                         # ingest, batch, resume, job status
-    │   └── references/errors.md             # error codes and retry rules
-    ├── index4ai-search-project/
-    │   └── SKILL.md                         # search across a project, attribute filters
-    └── index4ai-search-document/
-        └── SKILL.md                         # search inside one document, doc id resolution
-```
-
-`plugin.json` and `mcp.json` validate against the 1.0.0 schemas
-([plugin](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json),
-[mcp](https://agent-plugins.org/schemas/1.0.0/mcp.schema.json)). The skills follow the
-[Agent Skills](https://agentskills.io/specification) spec.
-
-The `.claude-plugin/` and `.mcp.json` files are Claude Code's own format, which is not the
-Agent Plugins standard: Claude Code reads `.mcp.json`, never `mcp.json`. Both MCP
-declarations point at the same endpoint; keep them in sync.
-
 ## Install
 
 In a Claude Code session (2.1.275 or later), one step adds the marketplace and installs:
